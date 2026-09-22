@@ -1,0 +1,667 @@
+import os
+import uuid
+import secrets
+import logging
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
+import httpx
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Depends
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
+from passlib.context import CryptContext
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
+
+mongo_url = os.environ["MONGO_URL"]
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ["DB_NAME"]]
+
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+app = FastAPI()
+api_router = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("familia")
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def ensure_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+# --------------------------------------------------------------------------- #
+# Models
+# --------------------------------------------------------------------------- #
+class GoogleSessionIn(BaseModel):
+    session_id: str
+
+
+class CreateFamilyIn(BaseModel):
+    family_name: str
+    capo_name: str
+    pin: Optional[str] = None
+    avatar: str = "🦁"
+    accent_color: str = "coral"
+
+
+class MemberIn(BaseModel):
+    name: str
+    avatar: str = "🐼"
+    accent_color: str = "mint"
+    role: str = "membro"
+    pin: Optional[str] = None
+
+
+class MemberUpdate(BaseModel):
+    name: Optional[str] = None
+    avatar: Optional[str] = None
+    accent_color: Optional[str] = None
+    role: Optional[str] = None
+    pin: Optional[str] = None
+
+
+class PinIn(BaseModel):
+    pin: str
+
+
+class ActivityIn(BaseModel):
+    type: str = "compito"
+    title: str
+    icon: str = "star"
+    points: int = 0
+    assigned_to: str
+    date: str
+    note: Optional[str] = None
+    time: Optional[str] = None
+
+
+class ActivityUpdate(BaseModel):
+    title: Optional[str] = None
+    icon: Optional[str] = None
+    points: Optional[int] = None
+    assigned_to: Optional[str] = None
+    date: Optional[str] = None
+    note: Optional[str] = None
+    time: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Serializers
+# --------------------------------------------------------------------------- #
+def member_public(m: dict) -> dict:
+    return {
+        "member_id": m["member_id"],
+        "family_id": m["family_id"],
+        "name": m["name"],
+        "avatar": m.get("avatar", "🐼"),
+        "accent_color": m.get("accent_color", "coral"),
+        "role": m.get("role", "membro"),
+        "points": m.get("points", 0),
+        "has_pin": bool(m.get("pin_hash")),
+    }
+
+
+def activity_public(a: dict) -> dict:
+    return {
+        "id": a["id"],
+        "family_id": a["family_id"],
+        "type": a.get("type", "compito"),
+        "title": a["title"],
+        "icon": a.get("icon", "star"),
+        "points": a.get("points", 0),
+        "assigned_to": a.get("assigned_to"),
+        "date": a.get("date"),
+        "time": a.get("time"),
+        "note": a.get("note"),
+        "status": a.get("status", "todo"),
+        "created_by": a.get("created_by"),
+        "completed_by": a.get("completed_by"),
+        "completed_at": a.get("completed_at"),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Auth dependency
+# --------------------------------------------------------------------------- #
+async def require_auth(authorization: Optional[str] = Header(default=None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Non autenticato")
+    token = authorization.split(" ", 1)[1].strip()
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Sessione non valida")
+    if ensure_aware(session["expires_at"]) < now_utc():
+        raise HTTPException(status_code=401, detail="Sessione scaduta")
+    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Utente non trovato")
+    family = await db.families.find_one({"owner_user_id": user["user_id"]}, {"_id": 0})
+    if not family:
+        raise HTTPException(status_code=404, detail="Famiglia non trovata")
+    return {"user": user, "family": family}
+
+
+async def get_actor(family_id: str, x_member_id: Optional[str]) -> Optional[dict]:
+    if not x_member_id:
+        return None
+    return await db.members.find_one(
+        {"member_id": x_member_id, "family_id": family_id, "deleted_at": None}, {"_id": 0}
+    )
+
+
+async def mint_session(user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    await db.user_sessions.insert_one(
+        {
+            "session_token": token,
+            "user_id": user_id,
+            "created_at": now_utc(),
+            "expires_at": now_utc() + timedelta(days=7),
+        }
+    )
+    return token
+
+
+async def family_payload(user: dict, family: dict) -> dict:
+    members = await db.members.find(
+        {"family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    ).to_list(100)
+    members.sort(key=lambda m: (m.get("role") != "capo", m.get("created_at", now_utc())))
+    return {
+        "user": {"user_id": user["user_id"], "name": user.get("name"), "email": user.get("email")},
+        "family": {"family_id": family["family_id"], "name": family["name"]},
+        "members": [member_public(m) for m in members],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Routes: auth / family creation
+# --------------------------------------------------------------------------- #
+@api_router.get("/")
+async def root():
+    return {"message": "FamigliaTask API"}
+
+
+@api_router.post("/auth/session")
+async def google_session(body: GoogleSessionIn):
+    async with httpx.AsyncClient(timeout=20) as http:
+        resp = await http.get(EMERGENT_SESSION_URL, headers={"X-Session-ID": body.session_id})
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Sessione Google non valida")
+    data = resp.json()
+    email = data.get("email")
+    name = data.get("name") or (email.split("@")[0] if email else "Genitore")
+    picture = data.get("picture")
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        user_id = new_id("user")
+        user = {
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "auth_type": "google",
+            "created_at": now_utc(),
+        }
+        await db.users.insert_one(dict(user))
+        family = {
+            "family_id": new_id("fam"),
+            "owner_user_id": user_id,
+            "name": f"Famiglia di {name}",
+            "created_at": now_utc(),
+        }
+        await db.families.insert_one(dict(family))
+        await db.members.insert_one(
+            {
+                "member_id": new_id("mem"),
+                "family_id": family["family_id"],
+                "name": name,
+                "avatar": "👑",
+                "accent_color": "coral",
+                "role": "capo",
+                "points": 0,
+                "pin_hash": None,
+                "deleted_at": None,
+                "created_at": now_utc(),
+            }
+        )
+    else:
+        family = await db.families.find_one({"owner_user_id": user["user_id"]}, {"_id": 0})
+
+    token = await mint_session(user["user_id"])
+    payload = await family_payload(user, family)
+    return {"session_token": token, **payload}
+
+
+@api_router.post("/family/create")
+async def create_family(body: CreateFamilyIn):
+    user_id = new_id("user")
+    user = {
+        "user_id": user_id,
+        "email": None,
+        "name": body.capo_name,
+        "picture": None,
+        "auth_type": "device",
+        "created_at": now_utc(),
+    }
+    await db.users.insert_one(dict(user))
+    family = {
+        "family_id": new_id("fam"),
+        "owner_user_id": user_id,
+        "name": body.family_name.strip() or "La mia famiglia",
+        "created_at": now_utc(),
+    }
+    await db.families.insert_one(dict(family))
+    await db.members.insert_one(
+        {
+            "member_id": new_id("mem"),
+            "family_id": family["family_id"],
+            "name": body.capo_name.strip() or "Capo",
+            "avatar": body.avatar,
+            "accent_color": body.accent_color,
+            "role": "capo",
+            "points": 0,
+            "pin_hash": pwd_ctx.hash(body.pin) if body.pin else None,
+            "deleted_at": None,
+            "created_at": now_utc(),
+        }
+    )
+    token = await mint_session(user_id)
+    payload = await family_payload(user, family)
+    return {"session_token": token, **payload}
+
+
+@api_router.get("/auth/me")
+async def auth_me(ctx: dict = Depends(require_auth)):
+    return await family_payload(ctx["user"], ctx["family"])
+
+
+@api_router.get("/family")
+async def get_family(ctx: dict = Depends(require_auth)):
+    return await family_payload(ctx["user"], ctx["family"])
+
+
+# --------------------------------------------------------------------------- #
+# Routes: members
+# --------------------------------------------------------------------------- #
+@api_router.post("/family/members")
+async def add_member(
+    body: MemberIn,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor or actor.get("role") != "capo":
+        raise HTTPException(status_code=403, detail="Solo il capo famiglia può aggiungere membri")
+    member = {
+        "member_id": new_id("mem"),
+        "family_id": family["family_id"],
+        "name": body.name.strip(),
+        "avatar": body.avatar,
+        "accent_color": body.accent_color,
+        "role": body.role if body.role in ("capo", "membro") else "membro",
+        "points": 0,
+        "pin_hash": pwd_ctx.hash(body.pin) if body.pin else None,
+        "deleted_at": None,
+        "created_at": now_utc(),
+    }
+    await db.members.insert_one(dict(member))
+    return member_public(member)
+
+
+@api_router.put("/family/members/{member_id}")
+async def update_member(
+    member_id: str,
+    body: MemberUpdate,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    if actor.get("role") != "capo" and actor["member_id"] != member_id:
+        raise HTTPException(status_code=403, detail="Non puoi modificare questo membro")
+
+    updates: dict = {}
+    if body.name is not None:
+        updates["name"] = body.name.strip()
+    if body.avatar is not None:
+        updates["avatar"] = body.avatar
+    if body.accent_color is not None:
+        updates["accent_color"] = body.accent_color
+    if body.role is not None and actor.get("role") == "capo":
+        updates["role"] = body.role if body.role in ("capo", "membro") else "membro"
+    if body.pin is not None:
+        updates["pin_hash"] = pwd_ctx.hash(body.pin) if body.pin else None
+
+    if updates:
+        await db.members.update_one(
+            {"member_id": member_id, "family_id": family["family_id"]}, {"$set": updates}
+        )
+    m = await db.members.find_one(
+        {"member_id": member_id, "family_id": family["family_id"]}, {"_id": 0}
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    return member_public(m)
+
+
+@api_router.delete("/family/members/{member_id}")
+async def delete_member(
+    member_id: str,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor or actor.get("role") != "capo":
+        raise HTTPException(status_code=403, detail="Solo il capo famiglia può rimuovere membri")
+    target = await db.members.find_one(
+        {"member_id": member_id, "family_id": family["family_id"]}, {"_id": 0}
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    if target.get("role") == "capo":
+        raise HTTPException(status_code=400, detail="Non puoi rimuovere il capo famiglia")
+    await db.members.update_one(
+        {"member_id": member_id, "family_id": family["family_id"]},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    return {"ok": True}
+
+
+@api_router.post("/family/members/{member_id}/verify-pin")
+async def verify_pin(member_id: str, body: PinIn, ctx: dict = Depends(require_auth)):
+    family = ctx["family"]
+    m = await db.members.find_one(
+        {"member_id": member_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro non trovato")
+    if not m.get("pin_hash"):
+        return {"ok": True, "member": member_public(m)}
+    if not pwd_ctx.verify(body.pin, m["pin_hash"]):
+        raise HTTPException(status_code=401, detail="PIN errato")
+    return {"ok": True, "member": member_public(m)}
+
+
+# --------------------------------------------------------------------------- #
+# Routes: activities
+# --------------------------------------------------------------------------- #
+@api_router.get("/activities")
+async def list_activities(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    ctx: dict = Depends(require_auth),
+):
+    query: dict = {"family_id": ctx["family"]["family_id"], "deleted_at": None}
+    if start and end:
+        query["date"] = {"$gte": start, "$lte": end}
+    elif start:
+        query["date"] = start
+    items = await db.activities.find(query, {"_id": 0}).to_list(1000)
+    items.sort(key=lambda a: (a.get("date", ""), a.get("time") or "99:99"))
+    return [activity_public(a) for a in items]
+
+
+@api_router.post("/activities")
+async def create_activity(
+    body: ActivityIn,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+
+    atype = body.type if body.type in ("compito", "impegno") else "compito"
+    if actor.get("role") != "capo":
+        if atype == "compito":
+            raise HTTPException(status_code=403, detail="Solo il capo può assegnare compiti")
+        if body.assigned_to != actor["member_id"]:
+            raise HTTPException(status_code=403, detail="Puoi aggiungere impegni solo per te")
+
+    target = await db.members.find_one(
+        {"member_id": body.assigned_to, "family_id": family["family_id"], "deleted_at": None},
+        {"_id": 0},
+    )
+    if not target:
+        raise HTTPException(status_code=400, detail="Membro assegnato non valido")
+
+    activity = {
+        "id": new_id("act"),
+        "family_id": family["family_id"],
+        "type": atype,
+        "title": body.title.strip(),
+        "icon": body.icon,
+        "points": max(0, body.points) if atype == "compito" else 0,
+        "assigned_to": body.assigned_to,
+        "date": body.date,
+        "time": body.time,
+        "note": body.note,
+        "status": "todo",
+        "created_by": actor["member_id"],
+        "completed_by": None,
+        "completed_at": None,
+        "deleted_at": None,
+        "created_at": now_utc(),
+    }
+    await db.activities.insert_one(dict(activity))
+    return activity_public(activity)
+
+
+@api_router.put("/activities/{activity_id}")
+async def update_activity(
+    activity_id: str,
+    body: ActivityUpdate,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not a:
+        raise HTTPException(status_code=404, detail="Attività non trovata")
+    if actor.get("role") != "capo" and a.get("created_by") != actor["member_id"]:
+        raise HTTPException(status_code=403, detail="Non puoi modificare questa attività")
+
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if "title" in updates:
+        updates["title"] = updates["title"].strip()
+    if a.get("type") == "impegno":
+        updates.pop("points", None)
+    if updates:
+        await db.activities.update_one(
+            {"id": activity_id, "family_id": family["family_id"]}, {"$set": updates}
+        )
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"]}, {"_id": 0}
+    )
+    return activity_public(a)
+
+
+@api_router.post("/activities/{activity_id}/complete")
+async def complete_activity(
+    activity_id: str,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not a:
+        raise HTTPException(status_code=404, detail="Attività non trovata")
+    if a.get("status") == "done":
+        return activity_public(a)
+    await db.activities.update_one(
+        {"id": activity_id, "family_id": family["family_id"]},
+        {"$set": {"status": "done", "completed_by": actor["member_id"], "completed_at": now_utc()}},
+    )
+    pts = a.get("points", 0)
+    if a.get("type") == "compito" and pts > 0:
+        await db.members.update_one(
+            {"member_id": a["assigned_to"], "family_id": family["family_id"]},
+            {"$inc": {"points": pts}},
+        )
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"]}, {"_id": 0}
+    )
+    return activity_public(a)
+
+
+@api_router.post("/activities/{activity_id}/uncomplete")
+async def uncomplete_activity(
+    activity_id: str,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not a:
+        raise HTTPException(status_code=404, detail="Attività non trovata")
+    if a.get("status") != "done":
+        return activity_public(a)
+    pts = a.get("points", 0)
+    if a.get("type") == "compito" and pts > 0:
+        await db.members.update_one(
+            {"member_id": a["assigned_to"], "family_id": family["family_id"]},
+            {"$inc": {"points": -pts}},
+        )
+    await db.activities.update_one(
+        {"id": activity_id, "family_id": family["family_id"]},
+        {"$set": {"status": "todo", "completed_by": None, "completed_at": None}},
+    )
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"]}, {"_id": 0}
+    )
+    return activity_public(a)
+
+
+@api_router.delete("/activities/{activity_id}")
+async def delete_activity(
+    activity_id: str,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    a = await db.activities.find_one(
+        {"id": activity_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not a:
+        raise HTTPException(status_code=404, detail="Attività non trovata")
+    if actor.get("role") != "capo" and a.get("created_by") != actor["member_id"]:
+        raise HTTPException(status_code=403, detail="Non puoi eliminare questa attività")
+    if a.get("status") == "done" and a.get("type") == "compito" and a.get("points", 0) > 0:
+        await db.members.update_one(
+            {"member_id": a["assigned_to"], "family_id": family["family_id"]},
+            {"$inc": {"points": -a["points"]}},
+        )
+    await db.activities.update_one(
+        {"id": activity_id, "family_id": family["family_id"]},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    return {"ok": True}
+
+
+# --------------------------------------------------------------------------- #
+# Routes: leaderboard + presets
+# --------------------------------------------------------------------------- #
+@api_router.get("/leaderboard")
+async def leaderboard(ctx: dict = Depends(require_auth)):
+    members = await db.members.find(
+        {"family_id": ctx["family"]["family_id"], "deleted_at": None}, {"_id": 0}
+    ).to_list(100)
+    members.sort(key=lambda m: m.get("points", 0), reverse=True)
+    return [member_public(m) for m in members]
+
+
+PRESETS = [
+    {"title": "Studia", "icon": "book", "points": 20},
+    {"title": "Pulisci la stanza", "icon": "broom", "points": 15},
+    {"title": "Fai la lavatrice", "icon": "laundry", "points": 20},
+    {"title": "Lava i piatti", "icon": "dishes", "points": 15},
+    {"title": "Porta fuori la spazzatura", "icon": "trash", "points": 10},
+    {"title": "Apparecchia la tavola", "icon": "table", "points": 10},
+    {"title": "Rifai il letto", "icon": "bed", "points": 5},
+    {"title": "Innaffia le piante", "icon": "plant", "points": 5},
+    {"title": "Porta a spasso il cane", "icon": "dog", "points": 15},
+    {"title": "Fai la spesa", "icon": "cart", "points": 25},
+]
+
+
+@api_router.get("/presets")
+async def get_presets(ctx: dict = Depends(require_auth)):
+    return PRESETS
+
+
+# --------------------------------------------------------------------------- #
+# App wiring
+# --------------------------------------------------------------------------- #
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def create_indexes():
+    try:
+        await db.users.create_index("user_id", unique=True)
+        await db.users.create_index("email", sparse=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+        await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+        await db.families.create_index("owner_user_id")
+        await db.members.create_index("family_id")
+        await db.activities.create_index([("family_id", 1), ("date", 1)])
+    except Exception as e:
+        logger.warning(f"Index creation issue: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()

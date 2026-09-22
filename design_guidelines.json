@@ -1,0 +1,155 @@
+{
+  "app_name": "FamigliaTask",
+  "personality": "4 Tactile / Playful LIGHT",
+  "personality_one_liner": "A joyful, tactile, and highly physical space that makes family chores feel like a collaborative game rather than a list of demands.",
+  "color": {
+    "surface": "#FFF9F6",
+    "onSurface": "#2C2A28",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#2C2A28",
+    "surfaceTertiary": "#F2EBE7",
+    "onSurfaceTertiary": "#54504C",
+    "surfaceInverse": "#2C2A28",
+    "onSurfaceInverse": "#FFF9F6",
+    "brand": "#FF6B6B",
+    "brandPrimary": "#FF6B6B",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FFD93D",
+    "onBrandSecondary": "#2C2A28",
+    "brandTertiary": "#FFEEEE",
+    "onBrandTertiary": "#CC3333",
+    "success": "#4ADE80",
+    "onSuccess": "#064E3B",
+    "warning": "#FBBF24",
+    "onWarning": "#451A03",
+    "error": "#EF4444",
+    "onError": "#FFFFFF",
+    "info": "#F2EBE7",
+    "onInfo": "#2C2A28",
+    "border": "#E8DFD8",
+    "borderStrong": "#D1C5BC",
+    "divider": "#E8DFD8",
+    "muted": "#7A736E",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Fredoka",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Make the interface feel touchable with generous spacing and oversized tap areas. Cards should be chunky and well-separated.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor (Filled)",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": [
+      "Avoid glassmorphism. This app relies on tactile, chunky, opaque surfaces and soft drop shadows instead of blur."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth / PIN Login",
+      "purpose": "Quick access for family members on shared devices (PIN) or standard Google login.",
+      "states": {
+        "loading": "Chunky spinner",
+        "empty": "N/A",
+        "error": "Shake animation on PIN dots + Red helper text."
+      },
+      "layout": "Large rounded avatars of family members in a grid. Tapping one brings up a massive, playful numeric keypad (4-6 digits). A 'Login with Google' secondary button sits at the bottom for parent/setup access."
+    },
+    {
+      "name": "Dashboard (Oggi)",
+      "purpose": "Shows today's assigned chores and allows members to check them off.",
+      "states": {
+        "loading": "Pill-shaped skeletons pulsing",
+        "empty": "Illustration of a shiny gold star + 'Nessun compito per oggi! Riposati.'",
+        "error": "Playful oops icon + Riprova button."
+      },
+      "layout": "Top section: Custom greeting with the user's active personalized accent color. Horizontal scrolling list of family members (for parents to switch views). Below: 'Da Fare' (To Do) stacked pill-cards with large icons (e.g., broom, book). Checking a chore creates a satisfying overshoot bounce and moves it to 'Fatti' (Done)."
+    },
+    {
+      "name": "Calendario",
+      "purpose": "Shared family calendar where parents assign chores and members add commitments.",
+      "states": {
+        "loading": "Calendar grid skeletons",
+        "empty": "Illustration of a colorful calendar + 'Nessun impegno in vista.'",
+        "error": "Alert icon + Riprova button."
+      },
+      "layout": "Large, chunky horizontal date selector at the top. Below, a timeline or list of activities grouped by family member. A floating action button (FAB) anchored at the bottom right allows the head of the family to assign a chore, or a member to add a 'Nuovo Impegno' (New Commitment)."
+    },
+    {
+      "name": "Classifica (Leaderboard)",
+      "purpose": "Gamified view of family points and rewards.",
+      "states": {
+        "loading": "Skeleton rows of avatars",
+        "empty": "N/A - Leaderboard always shows family.",
+        "error": "Alert icon + Riprova button."
+      },
+      "layout": "Podium-style top visual for top 3 family members with oversized 3D avatars. Below, a list ranking the rest. Tapping a member reveals their earned badges and current 'Premi' (Rewards) they are working towards."
+    }
+  ],
+  "images": {
+    "avatar_boy": {
+      "url": "https://images.unsplash.com/photo-1772371272141-0fbd644b65c4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwyfHxjdXRlJTIwM2QlMjBmYW1pbHklMjBob3VzZSUyMGNhcnRvb24lMjBhdmF0YXJ8ZW58MHx8fHwxNzkwMDYyNjExfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Smiling cartoon character in a purple hoodie"
+    },
+    "reward_star": {
+      "url": "https://images.pexels.com/photos/6532600/pexels-photo-6532600.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Arrangement with a medal and trophy on a yellow background"
+    },
+    "calendar_icon": {
+      "url": "https://images.unsplash.com/photo-1580227974466-ff23cd4750fa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxjb2xvcmZ1bCUyMGNhbGVuZGFyJTIwM2QlMjBpY29uJTIwY3V0ZXxlbnwwfHx8fDE3OTAwNjI2MTF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Colorful minimal calendar"
+    }
+  },
+  "haptics": {
+    "chore_complete": "success",
+    "pin_key_press": "light",
+    "tab_switch": "selection",
+    "button_press": "medium"
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: The app is in Italian ONLY. Ensure all hardcoded text (tabs, headers, buttons) uses Italian (Oggi, Calendario, Classifica, Profilo, Compiti, Impegni).",
+    "CRITICAL: Implemented a robust 'customizable accent color' pattern per user. Store a user's chosen theme color in state/context and map it to `brandPrimary` dynamically across the app. Provide at least 4 options: Coral (#FF6B6B), Mint (#4ADE80), Sunny Yellow (#FFD93D), and Bubblegum Pink (#FF87A6). DO NOT USE BLUE/PURPLE.",
+    "Implement a PIN-based login layout for kids/shared devices alongside the Google Login button for parents. The keypad should use large, chunky, touchable buttons.",
+    "Use Phosphor Filled icons at 24-28pt to reinforce the bubbly, tactile, friendly feel.",
+    "Make UI elements chunky: buttons and cards should have `borderRadius: 24` or `999` (pill), with soft `elevation: 2` or offset shadows. Avoid glassmorphism.",
+    "Apply `react-native-reanimated` for a bouncy overshoot effect when a user checks off a chore (Compito) or switches tabs.",
+    "Dual-role functionality: The 'Capo Famiglia' (Parent) sees all members and can assign tasks. Regular members (Kids) default to seeing their own tasks and can only add 'Impegni' (Commitments) to the calendar."
+  ]
+}
