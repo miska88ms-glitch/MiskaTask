@@ -59,7 +59,7 @@ export default function Profilo() {
     if (!code) return;
     try {
       await Share.share({
-        message: `Unisciti alla nostra famiglia su FamigliaTask! 👨‍👩‍👧 Apri l'app, scegli "Unisciti con un codice" e inserisci: ${code}`,
+        message: `Unisciti alla nostra famiglia su Family Task! 👨‍👩‍👧 Apri l'app, scegli "Unisciti con un codice" e inserisci: ${code}`,
       });
     } catch {
       /* user dismissed */

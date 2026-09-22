@@ -1,4 +1,4 @@
-// Design tokens for FamigliaTask — Tactile / Playful, light theme.
+// Design tokens for Family Task — Tactile / Playful, light theme.
 // Colors mirror the "color" block of /app/design_guidelines.json.
 
 import { useMemo } from "react";

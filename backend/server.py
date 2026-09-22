@@ -287,7 +287,7 @@ async def family_payload(user: dict, family: dict) -> dict:
 # --------------------------------------------------------------------------- #
 @api_router.get("/")
 async def root():
-    return {"message": "FamigliaTask API"}
+    return {"message": "Family Task API"}
 
 
 @api_router.post("/auth/session")

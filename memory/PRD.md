@@ -1,4 +1,4 @@
-# FamigliaTask — PRD
+# Family Task — PRD
 
 ## Problem statement (original, Italian)
 App mobile per la famiglia: i membri sono utenti diversi; si assegnano compiti di casa (studia, pulisci, fai la lavatrice) preimpostati o personalizzati; calendario gestito dal capo famiglia con tutte le attività, dove i membri possono al massimo visualizzare o aggiungere i propri impegni.

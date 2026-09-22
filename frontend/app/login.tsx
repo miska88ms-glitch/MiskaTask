@@ -41,7 +41,7 @@ export default function Login() {
           <View style={styles.logoBadge}>
             <HouseLine size={44} color={colors.onBrandPrimary} weight="fill" />
           </View>
-          <Text style={styles.appName}>FamigliaTask</Text>
+          <Text style={styles.appName}>Family Task</Text>
           <Text style={styles.tagline}>
             I compiti di casa diventano un gioco di squadra. Assegna, completa e scala la classifica!
           </Text>
