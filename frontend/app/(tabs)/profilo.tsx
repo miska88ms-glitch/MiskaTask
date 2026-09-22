@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CaretRight, PencilSimple, SignOut, UsersThree, ArrowsClockwise } from "phosphor-react-native";
+import * as Clipboard from "expo-clipboard";
+import { ArrowsClockwise, CaretRight, Copy, PencilSimple, ShareNetwork, SignOut, UsersThree } from "phosphor-react-native";
 
 import { ACCENTS, accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Avatar } from "@/src/components/ui";
 import { MemberSheet } from "@/src/components/member-sheet";
+import { ColorPickerSheet } from "@/src/components/color-picker-sheet";
 import { api } from "@/src/api";
 import { useApp } from "@/src/app-context";
 import { useToast } from "@/src/components/toast";
@@ -24,8 +26,10 @@ export default function Profilo() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const [editOpen, setEditOpen] = useState(false);
+  const [colorSheet, setColorSheet] = useState(false);
   const accent = accentById(activeMember?.accent_color);
   const isCapo = activeMember?.role === "capo";
+  const code = data?.family.invite_code ?? "";
 
   const accentMutation = useMutation({
     mutationFn: (accentId: string) => api.updateMember(activeMember!.member_id, { accent_color: accentId }),
@@ -35,6 +39,32 @@ export default function Profilo() {
       toast("Colore aggiornato 🎨", "success");
     },
   });
+
+  const regen = useMutation({
+    mutationFn: api.regenerateCode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["family"] });
+      toast("Nuovo codice generato", "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  const copyCode = async () => {
+    if (!code) return;
+    await Clipboard.setStringAsync(code);
+    toast("Codice copiato", "success");
+  };
+
+  const shareCode = async () => {
+    if (!code) return;
+    try {
+      await Share.share({
+        message: `Unisciti alla nostra famiglia su FamigliaTask! 👨‍👩‍👧 Apri l'app, scegli "Unisciti con un codice" e inserisci: ${code}`,
+      });
+    } catch {
+      /* user dismissed */
+    }
+  };
 
   if (!activeMember) return null;
 
@@ -80,6 +110,38 @@ export default function Profilo() {
                 />
               );
             })}
+            <Pressable
+              testID="profile-custom-color-btn"
+              onPress={() => setColorSheet(true)}
+              style={[styles.accentDot, styles.customDot, { backgroundColor: activeMember.accent_color.startsWith("#") ? activeMember.accent_color : colors.surfaceSecondary, borderColor: activeMember.accent_color.startsWith("#") ? colors.onSurface : colors.border }]}
+            >
+              <Text style={{ fontSize: 20 }}>🎨</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Invite code */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Codice invito</Text>
+          <View style={[styles.inviteCard, { backgroundColor: accent.soft }]}>
+            <Text style={[styles.inviteCode, { color: accent.color }]} testID="invite-code">{code}</Text>
+            <Text style={styles.inviteHint}>Condividi questo codice: i tuoi familiari potranno entrare dai loro telefoni.</Text>
+            <View style={styles.inviteActions}>
+              <Pressable testID="copy-code-btn" onPress={copyCode} style={[styles.inviteBtn, { backgroundColor: colors.surface }]}>
+                <Copy size={18} color={colors.onSurface} weight="bold" />
+                <Text style={styles.inviteBtnText}>Copia</Text>
+              </Pressable>
+              <Pressable testID="share-code-btn" onPress={shareCode} style={[styles.inviteBtn, { backgroundColor: accent.color }]}>
+                <ShareNetwork size={18} color={accent.on} weight="bold" />
+                <Text style={[styles.inviteBtnText, { color: accent.on }]}>Condividi</Text>
+              </Pressable>
+            </View>
+            {isCapo ? (
+              <Pressable testID="regen-code-btn" onPress={() => regen.mutate()} style={styles.regenBtn}>
+                <ArrowsClockwise size={15} color={colors.muted} weight="bold" />
+                <Text style={styles.regenText}>Genera nuovo codice</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -114,6 +176,7 @@ export default function Profilo() {
       </ScrollView>
 
       <MemberSheet visible={editOpen} onClose={() => setEditOpen(false)} editing={activeMember} accent={accent.id} />
+      <ColorPickerSheet visible={colorSheet} onClose={() => setColorSheet(false)} initial={activeMember.accent_color.startsWith("#") ? activeMember.accent_color : "#FF6B6B"} onSelect={(hex) => accentMutation.mutate(hex)} />
     </View>
   );
 }
@@ -133,6 +196,15 @@ const useStyles = makeStyles((colors) => ({
   sectionHint: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: colors.muted, marginTop: -Spacing.xs },
   accentRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },
   accentDot: { width: 48, height: 48, borderRadius: Radius.pill, borderWidth: 3 },
+  customDot: { alignItems: "center", justifyContent: "center" },
+  inviteCard: { borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.md, alignItems: "center" },
+  inviteCode: { fontFamily: Fonts.displayBold, fontSize: FontSize.huge, letterSpacing: 6 },
+  inviteHint: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: colors.onSurface, textAlign: "center", lineHeight: 18, opacity: 0.8 },
+  inviteActions: { flexDirection: "row", gap: Spacing.md, alignSelf: "stretch" },
+  inviteBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: Radius.pill },
+  inviteBtnText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base, color: colors.onSurface },
+  regenBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: Spacing.xs },
+  regenText: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm, color: colors.muted },
   list: { backgroundColor: colors.surfaceSecondary, borderRadius: Radius.lg, overflow: "hidden" },
   listRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.divider },
   listLabel: { flex: 1, fontFamily: Fonts.bodyBold, fontSize: FontSize.lg, color: colors.onSurface },

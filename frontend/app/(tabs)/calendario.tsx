@@ -60,7 +60,6 @@ export default function Calendario() {
   });
 
   const canComplete = (a: Activity) => isCapo || a.assigned_to === activeMember?.member_id;
-  const canEdit = (a: Activity) => isCapo || a.created_by === activeMember?.member_id;
 
   return (
     <View style={styles.root}>
@@ -113,11 +112,6 @@ export default function Calendario() {
                     assignee={member}
                     canComplete={canComplete(a)}
                     onToggle={() => toggleMutation.mutate(a)}
-                    onPress={() => {
-                      if (!canEdit(a)) return;
-                      setEditing(a);
-                      setSheetOpen(true);
-                    }}
                   />
                 ))}
               </View>

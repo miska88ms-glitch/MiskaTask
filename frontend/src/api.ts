@@ -24,7 +24,7 @@ export type Member = {
   has_pin: boolean;
 };
 
-export type Family = { family_id: string; name: string };
+export type Family = { family_id: string; name: string; invite_code: string | null };
 
 export type FamilyPayload = {
   user: { user_id: string; name: string; email: string | null };
@@ -43,6 +43,8 @@ export type Activity = {
   date: string;
   time: string | null;
   note: string | null;
+  has_note: boolean;
+  comment_count: number;
   status: "todo" | "done";
   created_by: string;
   completed_by: string | null;
@@ -50,6 +52,17 @@ export type Activity = {
 };
 
 export type Preset = { title: string; icon: string; points: number };
+
+export type Comment = {
+  id: string;
+  activity_id: string;
+  member_id: string;
+  member_name: string;
+  member_avatar: string;
+  member_accent: string;
+  text: string;
+  created_at: string;
+};
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -90,6 +103,18 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  joinFamily: (code: string) =>
+    request<FamilyPayload & { session_token: string }>("/family/join", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
+  regenerateCode: () =>
+    request<{ invite_code: string }>("/family/regenerate-code", { method: "POST" }),
+
+  registerPush: (body: { user_id: string; platform: string; device_token: string }) =>
+    request<{ status: string }>("/register-push", { method: "POST", body: JSON.stringify(body) }),
+
   me: () => request<FamilyPayload>("/auth/me"),
   family: () => request<FamilyPayload>("/family"),
 
@@ -107,6 +132,7 @@ export const api = {
 
   activities: (start: string, end: string) =>
     request<Activity[]>(`/activities?start=${start}&end=${end}`),
+  activity: (id: string) => request<Activity>(`/activities/${id}`),
   createActivity: (body: Record<string, unknown>) =>
     request<Activity>("/activities", { method: "POST", body: JSON.stringify(body) }),
   updateActivity: (id: string, body: Record<string, unknown>) =>
@@ -120,4 +146,11 @@ export const api = {
 
   leaderboard: () => request<Member[]>("/leaderboard"),
   presets: () => request<Preset[]>("/presets"),
+
+  comments: (activityId: string) => request<Comment[]>(`/activities/${activityId}/comments`),
+  addComment: (activityId: string, text: string) =>
+    request<Comment>(`/activities/${activityId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
 };

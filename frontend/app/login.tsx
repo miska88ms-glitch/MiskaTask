@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GoogleLogo, HouseLine, Sparkle } from "phosphor-react-native";
+import { GoogleLogo, HouseLine, Sparkle, UsersThree } from "phosphor-react-native";
 
 import { Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Btn } from "@/src/components/ui";
@@ -75,8 +75,15 @@ export default function Login() {
             icon={<GoogleLogo size={22} color={colors.brandPrimary} weight="fill" />}
             onPress={google}
           />
+          <Btn
+            label="Unisciti con un codice"
+            testID="join-family-btn"
+            variant="soft"
+            icon={<UsersThree size={22} color={colors.brandPrimary} weight="fill" />}
+            onPress={() => router.push("/join-family")}
+          />
           <Text style={styles.hint}>
-            Crea una famiglia per iniziare subito, oppure accedi con Google come capo famiglia.
+            Crea una famiglia come capo, oppure unisciti con il codice invito ricevuto.
           </Text>
         </View>
       </ScrollView>

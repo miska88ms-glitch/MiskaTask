@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
+import { useRouter } from "expo-router";
 import { Check } from "phosphor-react-native";
 
 import { accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
@@ -12,18 +13,17 @@ export function ActivityCard({
   assignee,
   canComplete,
   onToggle,
-  onPress,
   showAssignee = false,
 }: {
   activity: Activity;
   assignee?: Member;
   canComplete: boolean;
   onToggle: () => void;
-  onPress?: () => void;
   showAssignee?: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const router = useRouter();
   const Icon = getIcon(activity.icon);
   const done = activity.status === "done";
   const a = accentById(assignee?.accent_color ?? "coral");
@@ -42,7 +42,7 @@ export function ActivityCard({
     <Animated.View style={animStyle}>
       <Pressable
         testID={`activity-card-${activity.id}`}
-        onPress={onPress}
+        onPress={() => router.push(`/task/${activity.id}`)}
         style={[styles.card, done && styles.cardDone]}
       >
         <View style={[styles.iconWrap, { backgroundColor: done ? colors.surfaceTertiary : a.soft }]}>
@@ -65,6 +65,8 @@ export function ActivityCard({
                 · {assignee.avatar} {assignee.name}
               </Text>
             ) : null}
+            {activity.has_note ? <Text style={styles.metaBadge}>📝 nota</Text> : null}
+            {activity.comment_count > 0 ? <Text style={styles.metaBadge}>💬 {activity.comment_count}</Text> : null}
           </View>
         </View>
 
@@ -104,7 +106,8 @@ const useStyles = makeStyles((colors) => ({
   body: { flex: 1, gap: 3 },
   title: { fontFamily: Fonts.displayBold, fontSize: FontSize.lg, color: colors.onSurface },
   titleDone: { textDecorationLine: "line-through", color: colors.muted },
-  meta: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  meta: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" },
   metaText: { fontFamily: Fonts.bodySemibold, fontSize: FontSize.sm, color: colors.muted },
+  metaBadge: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm, color: colors.onSurfaceTertiary, backgroundColor: colors.surfaceTertiary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: Radius.pill, overflow: "hidden" },
   check: { width: 34, height: 34, borderRadius: Radius.pill, borderWidth: 2, alignItems: "center", justifyContent: "center" },
 }));

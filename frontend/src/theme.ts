@@ -97,8 +97,21 @@ export const ACCENTS: AccentDef[] = [
   { id: "berry", label: "Ciliegia", color: "#E11D48", soft: "#FBD5DD", on: "#FFFFFF" },
 ];
 
-export function accentById(id: string | undefined | null): AccentDef {
-  return ACCENTS.find((a) => a.id === id) ?? ACCENTS[0];
+export function readableOn(hex: string): string {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.62 ? "#2C2A28" : "#FFFFFF";
+}
+
+export function accentById(value: string | undefined | null): AccentDef {
+  if (value && value.startsWith("#")) {
+    return { id: value, label: "Personalizzato", color: value, soft: value + "22", on: readableOn(value) };
+  }
+  return ACCENTS.find((a) => a.id === value) ?? ACCENTS[0];
 }
 
 // --------------------------------------------------------------------------- //
@@ -107,5 +120,7 @@ export function accentById(id: string | undefined | null): AccentDef {
 export const AVATARS = [
   "🦁", "🐼", "🦊", "🐸", "🐵", "🦄",
   "🐯", "🐨", "🐷", "🐰", "🐻", "🐮",
-  "👑", "⭐", "🚀", "🦕",
+  "🐶", "🐱", "🐹", "🐔", "🐧", "🦉",
+  "🦖", "🐢", "🐙", "🦋", "🐝", "🐳",
+  "👑", "⭐", "🚀", "🌈", "🍀", "⚽",
 ];

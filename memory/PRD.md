@@ -28,13 +28,13 @@ App mobile per la famiglia: i membri sono utenti diversi; si assegnano compiti d
 - Colore accento personalizzabile per singolo utente.
 
 ## Implemented (2026-06)
-- Backend API completa: auth/session (Google), family/create, auth/me, family, members CRUD + verify-pin, activities CRUD + complete/uncomplete, leaderboard, presets. Indici Mongo, RBAC, soft delete, punti con rollback.
-- Frontend: login landing, crea-famiglia, selezione membro con PIN pad, tab Oggi (filtri per membro, completa con bounce), Calendario (selettore date + gruppi per membro + FAB), Classifica (podio + lista), Profilo (cambio colore accento, modifica profilo, cambia utente, esci), gestione membri (add/edit/delete).
-- Testing: 26/26 backend pytest + E2E frontend, tutti superati.
+- Backend API completa: auth/session (Google), family/create, family/join (codice invito), regenerate-code, auth/me, family, members CRUD + verify-pin, activities CRUD + complete/uncomplete + single GET, commenti (chat) list/add, leaderboard, presets, register-push. Indici Mongo, RBAC, soft delete, punti con rollback, notifiche push (relay Emergent) su assegnazione/chat/completamento.
+- Frontend: login (crea/Google/unisciti con codice), crea-famiglia (con nota codice + colore custom), join-family, selezione membro con PIN pad, tab Oggi/Calendario/Classifica/Profilo, dettaglio task (/task/[id]) con nota (modificabile solo da creatore+capo) e chat commenti, indicatori nota/chat sulle card, gestione membri, colore accento personalizzabile per utente (preset + ruota colore), codice invito visibile con copia/condividi/rigenera.
+- Notifiche push: expo-notifications + register-push; funziona solo dopo deploy+build reale con google-services.json.
+- Testing: iterazione 1 (26/26) + iterazione 2 (46/46) backend + E2E frontend, tutti superati.
 
 ## Backlog / next
 - P1: Premi/ricompense sbloccabili con i punti (badge, obiettivi).
 - P1: Compiti ricorrenti (settimanali) e promemoria orari.
 - P2: Statistiche settimanali per membro.
 - P2: Modalità dark.
-- P2: Note/allegati foto per attività (Object Storage).

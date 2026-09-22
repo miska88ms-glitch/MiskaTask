@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 2 end-to-end verified. Backend: 46/46 pytest cases pass (26 regression + 20 new for invite-code, join, regenerate-code RBAC, single-activity GET, notes with creator/capo edit rules, chat comments with member enrichment + count increment + chronological ordering, register-push placeholder returning {status:'skipped'} without crash). Frontend (mobile viewport 390x844): login shows the three CTAs 'Crea la tua famiglia' / 'Accedi con Google' / 'Unisciti con un codice' (join-family-btn); create-family screen shows the invite-code hint; after creating a family, Profilo tab exposes invite-code (6-char, alphabet A-HJ-NP-Z2-9), copy-code-btn, share-code-btn and regen-code-btn (capo only) — regenerating produces a different code; profile-custom-color-btn opens the color wheel and confirm-color-btn changes the accent (green 'Colore aggiornato' toast observed); creating a compito on Oggi, tapping the card navigates to /task/[id]; on the task screen note-input + note-save persists the note, comment-input + send-comment-btn posts a chat bubble that renders inline, task-complete-btn marks the compito done, and task-edit-btn + task-delete-btn are present for capo/creator; back on Oggi the card shows both '📝 nota' and '💬 1' badges. Join flow: entering the invite code on join-family lands on the member selection screen ('Chi sei?') with the correct family members. No deprecated Expo packages detected. No red-screen errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "global (web preview)",
+        "issues": [
+          "RN-Web console warnings: 'shadow*' style props deprecated (use boxShadow); 'props.pointerEvents is deprecated' — cosmetic, non-blocking (unchanged from iter 1)."
+        ]
+      },
+      {
+        "screen": "login (web preview only)",
+        "issues": [
+          "join-family-btn resolves to two DOM nodes on web preview (one hidden, one visible). Not a functional bug but selectors like `.first` may click the hidden node in Playwright. Consider ensuring only one instance renders (single ScrollView) or add distinct testIDs per breakpoint."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iter2_features.py",
+    "/app/test_reports/pytest/iter2_results.xml"
+  ],
+  "action_items": [
+    "None blocking — iteration 2 features work as spec'd on both backend and frontend.",
+    "Optional cleanup: in login.tsx, verify a single instance of the CTA buttons is rendered on web so `join-family-btn`/`create-family-btn` don't map to 2 DOM nodes."
+  ],
+  "critical_code_review_comments": [
+    "server.py: gen_invite_code uses an unambiguous alphabet (no 0/O/1/I) and unique_invite_code retries on collision. Invite code stored on family and returned in payload — good.",
+    "family/join creates a new user with auth_type='device-join' bound to family_id and mints a new session token — payload matches the creator's members list.",
+    "regenerate-code is capo-guarded via X-Member-Id + get_actor.",
+    "add_comment enriches comments with member_name/avatar/accent snapshot at post time (safe even if member later renamed/removed) and $inc's comment_count atomically.",
+    "PUT /activities enforces 'capo OR creator' — matches spec 'main note editable only by the task creator + capo'.",
+    "register-push swallows relay errors and returns {status:'skipped'} → placeholder key path is safe.",
+    "Frontend activity-card renders '📝 nota' when has_note and '💬 n' when comment_count>0. task/[id].tsx correctly exposes all required testIDs: task-complete-btn, edit-note-btn, note-input, note-save, comment-input, send-comment-btn, task-edit-btn, task-delete-btn, task-back-btn.",
+    "Profilo screen exposes invite-code, copy-code-btn, share-code-btn, regen-code-btn (regen gated to capo in server, button rendered from role check on client). profile-custom-color-btn + confirm-color-btn wire through the color-picker-sheet.",
+    "No MongoDB _id leaks; all serializers project {_id:0}. No hardcoded URLs on frontend (uses EXPO_PUBLIC_BACKEND_URL)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter2_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (46/46)",
+    "frontend": "100% (all iter-2 flows verified)"
+  },
+  "seed_data_creation": "Several TEST_UI_* and TEST_FamigliaIter2 families created via POST /api/family/create during pytest + Playwright runs; TEST_MembroIter2, TEST_Luca and TEST_Anna members. All prefixed with TEST_ for cleanup. Soft-delete used where deletion tested.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run backend tests with `pytest backend/tests/ -v -n 0` (serial) — the module-scoped ctx fixtures mutate state across classes. Use EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env for both API and Playwright. Playwright: use mobile viewport 390x844; if a testID matches multiple DOM nodes on web (e.g. join-family-btn), iterate and pick the first visible one. Invite codes are 6 chars from the alphabet ABCDEFGHJKLMNPQRSTUVWXYZ23456789. Join family creates a NEW user+session bound to family_id (not a new session for the capo). register-push in preview always returns {status:'skipped'} because EMERGENT_PUSH_KEY is a placeholder.",
+  "rca_of_issue": "N/A — all iteration 2 features (invite code create/join/regenerate, note RBAC, chat comments, register-push placeholder, custom color wheel) pass backend + frontend verification."
+}

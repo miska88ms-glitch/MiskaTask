@@ -7,6 +7,7 @@ import { ArrowLeft } from "phosphor-react-native";
 
 import { ACCENTS, accentById, AVATARS, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Btn } from "@/src/components/ui";
+import { ColorPickerSheet } from "@/src/components/color-picker-sheet";
 import { useApp } from "@/src/app-context";
 import { useToast } from "@/src/components/toast";
 
@@ -24,6 +25,7 @@ export default function CreateFamily() {
   const [accent, setAccent] = useState("coral");
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
+  const [colorSheet, setColorSheet] = useState(false);
 
   const a = accentById(accent);
   const canSubmit = familyName.trim().length > 0 && capoName.trim().length > 0;
@@ -119,6 +121,13 @@ export default function CreateFamily() {
                 style={[styles.accentDot, { backgroundColor: ac.color, borderColor: accent === ac.id ? colors.onSurface : "transparent" }]}
               />
             ))}
+            <Pressable
+              testID="custom-color-btn"
+              onPress={() => setColorSheet(true)}
+              style={[styles.accentDot, styles.customDot, { backgroundColor: accent.startsWith("#") ? accent : colors.surfaceTertiary, borderColor: accent.startsWith("#") ? colors.onSurface : colors.border }]}
+            >
+              <Text style={{ fontSize: 18 }}>🎨</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -137,7 +146,12 @@ export default function CreateFamily() {
         </View>
 
         <Btn label="Crea famiglia" testID="submit-create-family" accent={accent} loading={loading} disabled={!canSubmit} onPress={submit} />
+        <Text style={styles.codeNote}>
+          🔑 Dopo la creazione riceverai un <Text style={styles.codeNoteBold}>codice invito</Text> da condividere con i tuoi familiari per farli entrare dai loro telefoni.
+        </Text>
       </KeyboardAwareScrollView>
+
+      <ColorPickerSheet visible={colorSheet} onClose={() => setColorSheet(false)} initial={accent.startsWith("#") ? accent : "#FF6B6B"} onSelect={setAccent} />
     </View>
   );
 }
@@ -182,6 +196,9 @@ const useStyles = makeStyles((colors) => ({
     justifyContent: "center",
     borderWidth: 2,
   },
-  accentRow: { flexDirection: "row", gap: Spacing.md },
+  accentRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },
   accentDot: { width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3 },
+  customDot: { alignItems: "center", justifyContent: "center" },
+  codeNote: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: colors.muted, textAlign: "center", lineHeight: 20 },
+  codeNoteBold: { fontFamily: Fonts.bodyBold, color: colors.onSurface },
 }));

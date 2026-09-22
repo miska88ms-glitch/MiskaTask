@@ -52,13 +52,6 @@ export default function Oggi() {
   const done = filtered.filter((a) => a.status === "done");
 
   const canComplete = (a: Activity) => isCapo || a.assigned_to === activeMember?.member_id;
-  const canEdit = (a: Activity) => isCapo || a.created_by === activeMember?.member_id;
-
-  const openEdit = (a: Activity) => {
-    if (!canEdit(a)) return;
-    setEditing(a);
-    setSheetOpen(true);
-  };
 
   return (
     <View style={styles.root}>
@@ -117,7 +110,6 @@ export default function Oggi() {
                       canComplete={canComplete(a)}
                       showAssignee={filter === "all"}
                       onToggle={() => toggleMutation.mutate(a)}
-                      onPress={() => openEdit(a)}
                     />
                   </Animated.View>
                 ))}
@@ -135,7 +127,6 @@ export default function Oggi() {
                     canComplete={canComplete(a)}
                     showAssignee={filter === "all"}
                     onToggle={() => toggleMutation.mutate(a)}
-                    onPress={() => openEdit(a)}
                   />
                 ))}
               </View>

@@ -7,6 +7,7 @@ import { X } from "phosphor-react-native";
 
 import { ACCENTS, accentById, AVATARS, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Btn } from "@/src/components/ui";
+import { ColorPickerSheet } from "@/src/components/color-picker-sheet";
 import { api, type Member } from "@/src/api";
 import { useToast } from "@/src/components/toast";
 
@@ -32,6 +33,7 @@ export function MemberSheet({
   const [color, setColor] = useState("mint");
   const [role, setRole] = useState<"capo" | "membro">("membro");
   const [pin, setPin] = useState("");
+  const [colorSheet, setColorSheet] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -121,6 +123,13 @@ export function MemberSheet({
                     style={[styles.accentDot, { backgroundColor: ac.color, borderColor: color === ac.id ? colors.onSurface : "transparent" }]}
                   />
                 ))}
+                <Pressable
+                  testID="member-custom-color-btn"
+                  onPress={() => setColorSheet(true)}
+                  style={[styles.accentDot, styles.customDot, { backgroundColor: color.startsWith("#") ? color : colors.surfaceTertiary, borderColor: color.startsWith("#") ? colors.onSurface : colors.border }]}
+                >
+                  <Text style={{ fontSize: 16 }}>🎨</Text>
+                </Pressable>
               </View>
             </View>
 
@@ -160,6 +169,7 @@ export function MemberSheet({
           </KeyboardAwareScrollView>
         </View>
       </View>
+      <ColorPickerSheet visible={colorSheet} onClose={() => setColorSheet(false)} initial={color.startsWith("#") ? color : "#22A559"} onSelect={setColor} />
     </Modal>
   );
 }
@@ -194,8 +204,9 @@ const useStyles = makeStyles((colors) => ({
   },
   avatarGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   avatarCell: { width: 48, height: 48, borderRadius: Radius.md, alignItems: "center", justifyContent: "center", borderWidth: 2 },
-  accentRow: { flexDirection: "row", gap: Spacing.md },
+  accentRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },
   accentDot: { width: 40, height: 40, borderRadius: Radius.pill, borderWidth: 3 },
+  customDot: { alignItems: "center", justifyContent: "center" },
   segment: { flexDirection: "row", backgroundColor: colors.surfaceTertiary, borderRadius: Radius.pill, padding: 4 },
   segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: Radius.pill, alignItems: "center" },
   segmentText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base, color: colors.onSurfaceTertiary },

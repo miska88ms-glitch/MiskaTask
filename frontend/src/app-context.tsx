@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, setActiveMemberIdHeader, setAuthToken, type FamilyPayload, type Member } from "@/src/api";
 import { storage } from "@/src/utils/storage";
+import { registerForPush } from "@/src/push";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -35,6 +36,7 @@ type AppContextValue = {
     avatar: string;
     accent_color: string;
   }) => Promise<void>;
+  joinFamily: (code: string) => Promise<void>;
   selectMember: (member: Member) => Promise<void>;
   clearActiveMember: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -138,6 +140,11 @@ export function AppProvider({ children }: PropsWithChildren) {
     setActiveMemberIdHeader(activeMemberId);
   }, [activeMemberId]);
 
+  // Register this device for push under the active member id (best-effort).
+  useEffect(() => {
+    if (token && activeMemberId) void registerForPush(activeMemberId);
+  }, [token, activeMemberId]);
+
   const members = familyQuery.data?.members ?? [];
   const activeMember = members.find((m) => m.member_id === activeMemberId) ?? null;
 
@@ -165,6 +172,12 @@ export function AppProvider({ children }: PropsWithChildren) {
     // Auto-select the capo we just created.
     const capo = payload.members.find((m) => m.role === "capo") ?? payload.members[0];
     if (capo) await selectMember(capo);
+  };
+
+  const joinFamily: AppContextValue["joinFamily"] = async (code) => {
+    const payload = await api.joinFamily(code);
+    await applySession(payload);
+    // Do NOT auto-select — the joining person picks their own profile + PIN.
   };
 
   const selectMember: AppContextValue["selectMember"] = async (member) => {
@@ -211,6 +224,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         activeMember,
         signInWithGoogle,
         createFamily,
+        joinFamily,
         selectMember,
         clearActiveMember,
         signOut,
