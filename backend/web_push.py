@@ -165,7 +165,7 @@ def create_web_push_router(push: WebPush, require_auth, get_actor):
     router = APIRouter(prefix="/web-push", tags=["web-push"])
 
     async def actor_context(ctx=Depends(require_auth), x_member_id: Optional[str] = Header(default=None)):
-        actor = await get_actor(ctx["family"]["family_id"], x_member_id)
+        actor = await get_actor(ctx, x_member_id)
         if not actor:
             raise HTTPException(403, "Seleziona un membro della famiglia")
         return actor

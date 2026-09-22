@@ -81,6 +81,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       user: payload.user,
       family: payload.family,
       members: payload.members,
+      active_member_id: payload.active_member_id ?? null,
     });
   };
 
@@ -141,6 +142,20 @@ export function AppProvider({ children }: PropsWithChildren) {
     setActiveMemberIdHeader(activeMemberId);
   }, [activeMemberId]);
 
+  // The server session owns the active profile (bound after the PIN check).
+  // If it no longer matches, drop the local selection and ask "Chi sei?" again.
+  useEffect(() => {
+    if (!familyQuery.isSuccess) return;
+    const serverActive = familyQuery.data?.active_member_id ?? null;
+    if (serverActive === activeMemberId) return;
+    setActiveMemberId(serverActive);
+    setActiveMemberIdHeader(serverActive);
+    void (serverActive
+      ? storage.setItem(ACTIVE_KEY, serverActive)
+      : storage.removeItem(ACTIVE_KEY));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familyQuery.isSuccess, familyQuery.data?.active_member_id]);
+
   // Register this device for push under the active member id (best-effort).
   useEffect(() => {
     if (token && activeMemberId) void registerForPush(activeMemberId);
@@ -186,17 +201,25 @@ export function AppProvider({ children }: PropsWithChildren) {
     setActiveMemberId(member.member_id);
     setActiveMemberIdHeader(member.member_id);
     await storage.setItem(ACTIVE_KEY, member.member_id);
+    queryClient.setQueryData(["family"], (prev: FamilyPayload | undefined) =>
+      prev ? { ...prev, active_member_id: member.member_id } : prev
+    );
   };
 
   const clearActiveMember = async () => {
     await detachWebPush();
+    await api.deactivateMember().catch(() => undefined);
     setActiveMemberId(null);
     setActiveMemberIdHeader(null);
     await storage.removeItem(ACTIVE_KEY);
+    queryClient.setQueryData(["family"], (prev: FamilyPayload | undefined) =>
+      prev ? { ...prev, active_member_id: null } : prev
+    );
   };
 
   const signOut = async () => {
     await detachWebPush();
+    await api.revokeSession().catch(() => undefined);
     await storage.secureRemove(TOKEN_KEY);
     await storage.removeItem(ACTIVE_KEY);
     setAuthToken(null);

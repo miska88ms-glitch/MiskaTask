@@ -25,7 +25,13 @@ export default function SelectMember() {
 
   const onPickMember = async (m: Member) => {
     if (!m.has_pin) {
-      await selectMember(m);
+      try {
+        // Activates this profile on the server session (no PIN set).
+        await api.verifyPin(m.member_id, "");
+        await selectMember(m);
+      } catch (e) {
+        toast((e as Error).message, "error");
+      }
       return;
     }
     setPending(m);

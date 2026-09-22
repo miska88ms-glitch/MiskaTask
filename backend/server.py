@@ -13,7 +13,7 @@ from fastapi import FastAPI, APIRouter, Header, HTTPException, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from passlib.context import CryptContext
 from web_push import WebPush, create_web_push_router
 
@@ -115,39 +115,39 @@ class GoogleSessionIn(BaseModel):
 
 
 class CreateFamilyIn(BaseModel):
-    family_name: str
-    capo_name: str
-    pin: Optional[str] = None
-    avatar: str = "🦁"
-    accent_color: str = "coral"
+    family_name: str = Field(min_length=1, max_length=60)
+    capo_name: str = Field(min_length=1, max_length=60)
+    pin: Optional[str] = Field(default=None, pattern=r"^\d{4}$")
+    avatar: str = Field(default="🦁", max_length=8)
+    accent_color: str = Field(default="coral", max_length=24)
 
 
 class MemberIn(BaseModel):
-    name: str
-    avatar: str = "🐼"
-    accent_color: str = "mint"
-    role: str = "membro"
-    pin: Optional[str] = None
+    name: str = Field(min_length=1, max_length=60)
+    avatar: str = Field(default="🐼", max_length=8)
+    accent_color: str = Field(default="mint", max_length=24)
+    role: str = Field(default="membro", max_length=10)
+    pin: Optional[str] = Field(default=None, pattern=r"^\d{4}$")
 
 
 class MemberUpdate(BaseModel):
-    name: Optional[str] = None
-    avatar: Optional[str] = None
-    accent_color: Optional[str] = None
-    role: Optional[str] = None
-    pin: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    avatar: Optional[str] = Field(default=None, max_length=8)
+    accent_color: Optional[str] = Field(default=None, max_length=24)
+    role: Optional[str] = Field(default=None, max_length=10)
+    pin: Optional[str] = Field(default=None, max_length=4)
 
 
 class PinIn(BaseModel):
-    pin: str
+    pin: str = Field(default="", max_length=4)
 
 
 class JoinIn(BaseModel):
-    code: str
+    code: str = Field(min_length=4, max_length=12)
 
 
 class CommentIn(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=1000)
 
 
 class RegisterPushBody(BaseModel):
@@ -157,39 +157,40 @@ class RegisterPushBody(BaseModel):
 
 
 class ActivityIn(BaseModel):
-    type: str = "compito"
-    title: str
-    icon: str = "star"
-    points: int = 0
-    assigned_to: str
-    date: str
-    note: Optional[str] = None
-    time: Optional[str] = None
-    end_time: Optional[str] = None
-    dates: Optional[List[str]] = None  # for recurring: create one activity per date
+    type: str = Field(default="compito", max_length=20)
+    title: str = Field(min_length=1, max_length=120)
+    icon: str = Field(default="star", max_length=40)
+    points: int = Field(default=0, ge=0, le=1000)
+    assigned_to: str = Field(min_length=1, max_length=60)
+    date: str = Field(min_length=1, max_length=10)
+    note: Optional[str] = Field(default=None, max_length=2000)
+    time: Optional[str] = Field(default=None, max_length=5)
+    end_time: Optional[str] = Field(default=None, max_length=5)
+    # for recurring: create one activity per date
+    dates: Optional[List[str]] = Field(default=None, max_length=90)
 
 
 class RewardIn(BaseModel):
-    title: str
-    icon: str = "gift"
-    cost: int
+    title: str = Field(min_length=1, max_length=120)
+    icon: str = Field(default="gift", max_length=40)
+    cost: int = Field(ge=0, le=100000)
 
 
 class RewardUpdate(BaseModel):
-    title: Optional[str] = None
-    icon: Optional[str] = None
-    cost: Optional[int] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    icon: Optional[str] = Field(default=None, max_length=40)
+    cost: Optional[int] = Field(default=None, ge=0, le=100000)
 
 
 class ActivityUpdate(BaseModel):
-    title: Optional[str] = None
-    icon: Optional[str] = None
-    points: Optional[int] = None
-    assigned_to: Optional[str] = None
-    date: Optional[str] = None
-    note: Optional[str] = None
-    time: Optional[str] = None
-    end_time: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    icon: Optional[str] = Field(default=None, max_length=40)
+    points: Optional[int] = Field(default=None, ge=0, le=1000)
+    assigned_to: Optional[str] = Field(default=None, max_length=60)
+    date: Optional[str] = Field(default=None, max_length=10)
+    note: Optional[str] = Field(default=None, max_length=2000)
+    time: Optional[str] = Field(default=None, max_length=5)
+    end_time: Optional[str] = Field(default=None, max_length=5)
 
 
 # --------------------------------------------------------------------------- #
@@ -266,23 +267,39 @@ async def require_auth(authorization: Optional[str] = Header(default=None)) -> d
         family = await db.families.find_one({"owner_user_id": user["user_id"]}, {"_id": 0})
     if not family:
         raise HTTPException(status_code=404, detail="Famiglia non trovata")
-    return {"user": user, "family": family}
+    return {"user": user, "family": family, "session": session}
 
 
-async def get_actor(family_id: str, x_member_id: Optional[str]) -> Optional[dict]:
-    if not x_member_id:
+async def get_actor(ctx: dict, x_member_id: Optional[str]) -> Optional[dict]:
+    """The acting member is bound to the server-side session by /verify-pin.
+
+    A client-supplied X-Member-Id is never trusted on its own: it is only
+    accepted when it matches the member already activated on this session.
+    """
+    member_id = (ctx.get("session") or {}).get("active_member_id")
+    if not member_id:
+        return None
+    if x_member_id and x_member_id != member_id:
         return None
     return await db.members.find_one(
-        {"member_id": x_member_id, "family_id": family_id, "deleted_at": None}, {"_id": 0}
+        {"member_id": member_id, "family_id": ctx["family"]["family_id"], "deleted_at": None},
+        {"_id": 0},
     )
 
 
-async def mint_session(user_id: str) -> str:
+async def activate_member(session_token: str, member_id: str) -> None:
+    await db.user_sessions.update_one(
+        {"session_token": session_token}, {"$set": {"active_member_id": member_id}}
+    )
+
+
+async def mint_session(user_id: str, active_member_id: Optional[str] = None) -> str:
     token = secrets.token_urlsafe(32)
     await db.user_sessions.insert_one(
         {
             "session_token": token,
             "user_id": user_id,
+            "active_member_id": active_member_id,
             "created_at": now_utc(),
             "expires_at": now_utc() + timedelta(days=7),
         }
@@ -290,7 +307,7 @@ async def mint_session(user_id: str) -> str:
     return token
 
 
-async def family_payload(user: dict, family: dict) -> dict:
+async def family_payload(user: dict, family: dict, active_member_id: Optional[str] = None) -> dict:
     members = await db.members.find(
         {"family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
     ).to_list(100)
@@ -299,6 +316,7 @@ async def family_payload(user: dict, family: dict) -> dict:
         "user": {"user_id": user["user_id"], "name": user.get("name"), "email": user.get("email")},
         "family": {"family_id": family["family_id"], "name": family["name"], "invite_code": family.get("invite_code")},
         "members": [member_public(m) for m in members],
+        "active_member_id": active_member_id,
     }
 
 
@@ -387,9 +405,10 @@ async def create_family(body: CreateFamilyIn):
         "created_at": now_utc(),
     }
     await db.families.insert_one(dict(family))
+    capo_member_id = new_id("mem")
     await db.members.insert_one(
         {
-            "member_id": new_id("mem"),
+            "member_id": capo_member_id,
             "family_id": family["family_id"],
             "name": body.capo_name.strip() or "Capo",
             "avatar": body.avatar,
@@ -401,8 +420,8 @@ async def create_family(body: CreateFamilyIn):
             "created_at": now_utc(),
         }
     )
-    token = await mint_session(user_id)
-    payload = await family_payload(user, family)
+    token = await mint_session(user_id, active_member_id=capo_member_id)
+    payload = await family_payload(user, family, capo_member_id)
     return {"session_token": token, **payload}
 
 
@@ -433,7 +452,7 @@ async def regenerate_code(
     ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo può cambiare il codice")
     code = await unique_invite_code()
@@ -442,7 +461,7 @@ async def regenerate_code(
 
 
 @api_router.post("/register-push", status_code=201)
-async def register_push(body: RegisterPushBody):
+async def register_push(body: RegisterPushBody, ctx: dict = Depends(require_auth)):
     try:
         resp = await _push_client.post("/api/v1/push/users/register", json=body.model_dump())
         resp.raise_for_status()
@@ -454,12 +473,32 @@ async def register_push(body: RegisterPushBody):
 
 @api_router.get("/auth/me")
 async def auth_me(ctx: dict = Depends(require_auth)):
-    return await family_payload(ctx["user"], ctx["family"])
+    return await family_payload(
+        ctx["user"], ctx["family"], ctx["session"].get("active_member_id")
+    )
 
 
 @api_router.get("/family")
 async def get_family(ctx: dict = Depends(require_auth)):
-    return await family_payload(ctx["user"], ctx["family"])
+    return await family_payload(
+        ctx["user"], ctx["family"], ctx["session"].get("active_member_id")
+    )
+
+
+@api_router.post("/family/deactivate")
+async def deactivate_member(ctx: dict = Depends(require_auth)):
+    """Release the active profile on this session (switch user)."""
+    await db.user_sessions.update_one(
+        {"session_token": ctx["session"]["session_token"]},
+        {"$set": {"active_member_id": None}},
+    )
+    return {"ok": True}
+
+
+@api_router.delete("/auth/session")
+async def revoke_session(ctx: dict = Depends(require_auth)):
+    await db.user_sessions.delete_one({"session_token": ctx["session"]["session_token"]})
+    return {"ok": True}
 
 
 @api_router.get("/activities/{activity_id}")
@@ -496,7 +535,7 @@ async def add_comment(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     a = await db.activities.find_one(
@@ -549,7 +588,7 @@ async def add_member(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo famiglia può aggiungere membri")
     member = {
@@ -576,7 +615,7 @@ async def update_member(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     if actor.get("role") != "capo" and actor["member_id"] != member_id:
@@ -613,7 +652,7 @@ async def delete_member(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo famiglia può rimuovere membri")
     target = await db.members.find_one(
@@ -632,16 +671,20 @@ async def delete_member(
 
 @api_router.post("/family/members/{member_id}/verify-pin")
 async def verify_pin(member_id: str, body: PinIn, ctx: dict = Depends(require_auth)):
+    """Verify the member PIN and bind that member to the current session.
+
+    Every mutating route derives the acting member from the session, so this is
+    the only place where a profile can be activated.
+    """
     family = ctx["family"]
     m = await db.members.find_one(
         {"member_id": member_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
     )
     if not m:
         raise HTTPException(status_code=404, detail="Membro non trovato")
-    if not m.get("pin_hash"):
-        return {"ok": True, "member": member_public(m)}
-    if not pwd_ctx.verify(body.pin, m["pin_hash"]):
+    if m.get("pin_hash") and not pwd_ctx.verify(body.pin, m["pin_hash"]):
         raise HTTPException(status_code=401, detail="PIN errato")
+    await activate_member(ctx["session"]["session_token"], member_id)
     return {"ok": True, "member": member_public(m)}
 
 
@@ -671,7 +714,7 @@ async def create_activity(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
 
@@ -741,7 +784,7 @@ async def update_activity(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     a = await db.activities.find_one(
@@ -774,7 +817,7 @@ async def complete_activity(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     a = await db.activities.find_one(
@@ -820,7 +863,7 @@ async def uncomplete_activity(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     a = await db.activities.find_one(
@@ -853,7 +896,7 @@ async def delete_activity(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     a = await db.activities.find_one(
@@ -917,7 +960,7 @@ async def create_reward(
     body: RewardIn, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo può creare premi")
     reward = {
@@ -942,7 +985,7 @@ async def update_reward(
     x_member_id: Optional[str] = Header(default=None),
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo può modificare premi")
     updates = {k: v for k, v in body.dict().items() if v is not None}
@@ -965,7 +1008,7 @@ async def delete_reward(
     reward_id: str, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor or actor.get("role") != "capo":
         raise HTTPException(status_code=403, detail="Solo il capo può rimuovere premi")
     await db.rewards.update_one(
@@ -979,7 +1022,7 @@ async def redeem_reward(
     reward_id: str, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
 ):
     family = ctx["family"]
-    actor = await get_actor(family["family_id"], x_member_id)
+    actor = await get_actor(ctx, x_member_id)
     if not actor:
         raise HTTPException(status_code=403, detail="Membro non valido")
     reward = await db.rewards.find_one(
@@ -1052,7 +1095,6 @@ PRESETS = [
     {"title": "Apparecchia la tavola", "icon": "table", "points": 10},
     {"title": "Rifai il letto", "icon": "bed", "points": 5},
     {"title": "Innaffia le piante", "icon": "plant", "points": 5},
-    {"title": "Porta a spasso il cane", "icon": "dog", "points": 15},
     {"title": "Fai la spesa", "icon": "cart", "points": 25},
 ]
 
@@ -1070,7 +1112,9 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    # Auth uses a Bearer token (no cookies), so credentials must stay off:
+    # wildcard origins with credentials is an invalid/unsafe combination.
+    allow_credentials=False,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],

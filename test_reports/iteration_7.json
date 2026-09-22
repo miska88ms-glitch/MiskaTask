@@ -1,0 +1,37 @@
+{
+  "summary": "Iter7: verified SEC-001 fix (server-side session-bound active member) + full backend regression + frontend flow. Backend: 13/13 tests pass on test_iter6_security.py (family create auto-activates capo, verify-pin correct/wrong/empty, X-Member-Id spoofing rejected with 403, deactivate keeps session but blocks mutations, DELETE /auth/session revokes, Pydantic validation 422 for empty title / bad PIN / negative points / >1000 char comments, full activity+comment+reward CRUD, only capo regenerates code, /register-push requires auth). Preset 'Porta a spasso il cane' confirmed removed from both /api/presets response and MemberSheet UI. Frontend: login screen renders 'Miska (Developer)' via testID dev-credit; Profilo tab also shows dev-credit at bottom; create-family -> Oggi -> add-activity FAB -> chat inputs all reachable. After page reload the server-stored active_member_id keeps the profile active (FAB present, no 403, no console errors). 'Cambia utente' returns to select-member; a capo without PIN is admitted (verify-pin with empty body). No react-native deprecated packages detected (expo-audio/expo-video/expo-camera not needed). Minor: react-native-web logs 'shadow* style props are deprecated. Use boxShadow' warning (non-blocking).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles across screens", "issue": "react-native-web console warning: 'shadow* style props are deprecated. Use boxShadow'. Non-blocking but should be migrated in a future pass. Reference: theme/component StyleSheet definitions using shadowColor/shadowOpacity/shadowRadius/shadowOffset (e.g. /app/frontend/app/login.tsx:88-93)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6_security.py",
+    "/app/test_reports/pytest/iter7_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Replace shadow* React Native style props with boxShadow to remove console warning on web.",
+    "No functional fixes required from main agent for this iteration — security audit fix verified end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "server.py get_actor now correctly derives the acting member from session.active_member_id and ignores mismatched X-Member-Id headers — SEC-001 resolved.",
+    "CORS: allow_credentials=False with wildcard origins — correct since auth is Bearer-token (no cookies).",
+    "Pydantic constraints (Field(min_length/max_length/pattern/ge/le)) applied on all mutating request bodies — good.",
+    "Rate-limiting on PIN/invite code intentionally NOT implemented per user's explicit choice; not reported as a bug.",
+    "server.py is ~1150 lines; consider splitting routers (auth/family/activities/rewards/push) into modules in a future refactor — not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created transient test families via API (TEST_Iter6_Family, TEST_UI_Iter7, TEST_UI_Refresh, TEST_UI_AddFlow, TEST_Revoke) — all prefixed TEST_ and only in test DB collections. No fixture updates required for /app/memory/test_credentials.md as the pre-existing capo fixture (Mamma PIN 1234) remains valid.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter7 confirmed the SEC-001 security fix is fully working (13/13 pytest cases). If future iterations touch auth/session logic re-run pytest /app/backend/tests/test_iter6_security.py. Correct add-activity testIDs: 'add-activity-fab', 'input-activity-title', 'save-activity-btn'. For select-member, PIN field is optional in create-family; when no PIN set, tapping the capo cell in select-member calls verify-pin with empty body and enters directly.",
+  "rca_of_issue": "N/A — this iteration validated a security fix; no bug regressions found."
+}

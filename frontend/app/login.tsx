@@ -69,6 +69,7 @@ export default function Login() {
             <DeviceMobile size={20} color={colors.onBrandTertiary} weight="fill" />
             <Text testID="login-install-app-label" style={styles.installText}>Family Task sulla Home del telefono</Text>
           </Pressable>}
+          <Text testID="dev-credit" style={styles.devCredit}>Miska (Developer)</Text>
         </View>
       </ScrollView>
     </View>
@@ -102,7 +103,15 @@ const useStyles = makeStyles((colors) => ({
     paddingHorizontal: Spacing.md,
   },
   bullets: { gap: Spacing.md },
-  bullet: {
+  devCredit: {
+    fontFamily: Fonts.body,
+    fontSize: 10,
+    color: colors.muted,
+    textAlign: "center",
+    opacity: 0.6,
+    letterSpacing: 0.5,
+    marginTop: Spacing.sm,
+  },  bullet: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,

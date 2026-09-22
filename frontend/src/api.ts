@@ -43,6 +43,7 @@ export type FamilyPayload = {
   user: { user_id: string; name: string; email: string | null };
   family: Family;
   members: Member[];
+  active_member_id?: string | null;
 };
 
 export type Activity = {
@@ -169,6 +170,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ pin }),
     }),
+  deactivateMember: () => request<{ ok: boolean }>("/family/deactivate", { method: "POST" }),
+  revokeSession: () => request<{ ok: boolean }>("/auth/session", { method: "DELETE" }),
 
   activities: (start: string, end: string) =>
     request<Activity[]>(`/activities?start=${start}&end=${end}`),

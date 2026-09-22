@@ -190,6 +190,7 @@ export default function Profilo() {
             <Text style={[styles.actionText, { color: colors.error }]}>Esci dalla famiglia</Text>
           </Pressable>
         </View>
+        <Text testID="dev-credit" style={styles.devCredit}>Miska (Developer)</Text>
       </ScrollView>
 
       <MemberSheet visible={editOpen} onClose={() => setEditOpen(false)} editing={activeMember} accent={accent.id} />
@@ -209,6 +210,15 @@ const useStyles = makeStyles((colors) => ({
   editBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface, paddingHorizontal: Spacing.lg, paddingVertical: 10, borderRadius: Radius.pill, marginTop: Spacing.xs },
   editBtnText: { fontFamily: Fonts.bodyBold, fontSize: FontSize.base, color: colors.onSurface },
   section: { gap: Spacing.md },
+  devCredit: {
+    fontFamily: Fonts.body,
+    fontSize: 10,
+    color: colors.muted,
+    textAlign: "center",
+    opacity: 0.6,
+    letterSpacing: 0.5,
+    marginTop: Spacing.xl,
+  },
   sectionTitle: { fontFamily: Fonts.displayBold, fontSize: FontSize.xl, color: colors.onSurface },
   sectionHint: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: colors.muted, marginTop: -Spacing.xs },
   accentRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },

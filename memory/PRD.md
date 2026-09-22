@@ -1,5 +1,14 @@
 # Family Task — PRD
 
+## Aggiornamento giugno 2026 — Security audit
+- SEC-001 (HIGH) risolto: il membro attivo è ora vincolato alla sessione server-side (`active_member_id` su `user_sessions`). L'header `X-Member-Id` non conferisce privilegi da solo (403 se non attivato).
+- `POST /api/family/members/{id}/verify-pin` attiva il profilo sulla sessione; `POST /api/family/deactivate` lo rilascia (cambio utente); `DELETE /api/auth/session` revoca la sessione (logout).
+- `POST /api/family/create` auto-attiva il capo; `GET /api/family` e `/api/auth/me` restituiscono `active_member_id`.
+- Hardening: CORS `allow_credentials=False` (auth Bearer, non cookie), vincoli Pydantic di lunghezza/pattern su tutti gli input, `/api/register-push` ora autenticato.
+- Scelta utente: NESSUN anti-brute-force sul PIN (rischio accettato).
+- UI: scritta piccola «Miska (Developer)» su login e Profilo. Rimosso preset compito «Porta a spasso il cane».
+- Test: `/app/test_reports/iteration_7.json` — 13/13 backend + regressione frontend OK.
+
 ## Problem statement (original, Italian)
 App mobile per la famiglia: i membri sono utenti diversi; si assegnano compiti di casa (studia, pulisci, fai la lavatrice) preimpostati o personalizzati; calendario gestito dal capo famiglia con tutte le attività, dove i membri possono al massimo visualizzare o aggiungere i propri impegni.
 
