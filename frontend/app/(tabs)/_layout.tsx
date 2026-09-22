@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { House, CalendarBlank, Trophy, User } from "phosphor-react-native";
 
 import { accentById, Fonts, useTheme } from "@/src/theme";
@@ -9,6 +10,7 @@ import { usesNativeTabs } from "@/src/navigation";
 export default function TabsLayout() {
   const { colors } = useTheme();
   const accent = accentById(useAccent()).color;
+  const insets = useSafeAreaInsets();
 
   if (usesNativeTabs) {
     // Lazy require so non-iOS bundlers never touch the native module.
@@ -45,7 +47,7 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          ...(Platform.OS === "web" ? { height: 64 } : {}),
+          ...(Platform.OS === "web" ? { height: 64 + insets.bottom, paddingBottom: insets.bottom } : {}),
         },
         tabBarItemStyle: { alignSelf: "center" },
         tabBarLabelStyle: { fontFamily: Fonts.bodyBold, fontSize: 11 },
@@ -53,19 +55,19 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: "Oggi", tabBarIcon: ({ color }) => <House size={26} color={color} weight="fill" /> }}
+        options={{ title: "Oggi", tabBarButtonTestID: "tab-today-button", tabBarIcon: ({ color }) => <House size={26} color={String(color)} weight="fill" /> }}
       />
       <Tabs.Screen
         name="calendario"
-        options={{ title: "Calendario", tabBarIcon: ({ color }) => <CalendarBlank size={26} color={color} weight="fill" /> }}
+        options={{ title: "Calendario", tabBarButtonTestID: "tab-calendar-button", tabBarIcon: ({ color }) => <CalendarBlank size={26} color={String(color)} weight="fill" /> }}
       />
       <Tabs.Screen
         name="classifica"
-        options={{ title: "Classifica", tabBarIcon: ({ color }) => <Trophy size={26} color={color} weight="fill" /> }}
+        options={{ title: "Classifica", tabBarButtonTestID: "tab-leaderboard-button", tabBarIcon: ({ color }) => <Trophy size={26} color={String(color)} weight="fill" /> }}
       />
       <Tabs.Screen
         name="profilo"
-        options={{ title: "Profilo", tabBarIcon: ({ color }) => <User size={26} color={color} weight="fill" /> }}
+        options={{ title: "Profilo", tabBarButtonTestID: "tab-profile-button", tabBarIcon: ({ color }) => <User size={26} color={String(color)} weight="fill" /> }}
       />
     </Tabs>
   );

@@ -14,12 +14,14 @@ export function ActivityCard({
   canComplete,
   onToggle,
   showAssignee = false,
+  testPrefix = "",
 }: {
   activity: Activity;
   assignee?: Member;
   canComplete: boolean;
   onToggle: () => void;
   showAssignee?: boolean;
+  testPrefix?: string;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -42,7 +44,7 @@ export function ActivityCard({
   return (
     <Animated.View style={animStyle}>
       <Pressable
-        testID={`activity-card-${activity.id}`}
+        testID={`${testPrefix}activity-card-${activity.id}`}
         onPress={() => router.push(`/task/${activity.id}`)}
         style={[styles.card, done && styles.cardDone]}
       >
@@ -77,7 +79,7 @@ export function ActivityCard({
         </View>
 
         <Pressable
-          testID={`toggle-${activity.id}`}
+          testID={`${testPrefix}toggle-${activity.id}`}
           onPress={toggle}
           disabled={!canComplete}
           hitSlop={8}

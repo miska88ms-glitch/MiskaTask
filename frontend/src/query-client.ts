@@ -4,4 +4,5 @@
 // handlers; inside components useQueryClient() returns this same instance.
 import { QueryClient } from "@tanstack/react-query";
 
-export const queryClient = new QueryClient();
+// Don't silently queue writes while offline; the API returns a clear retry message.
+export const queryClient = new QueryClient({ defaultOptions: { mutations: { networkMode: "always", retry: false } } });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { api, type Reward } from "@/src/api";
 import { useApp } from "@/src/app-context";
 import { useToast } from "@/src/components/toast";
 import { dayjs } from "@/src/date";
+const FormScrollView = Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
 
 export default function Rewards() {
   const styles = useStyles();
@@ -195,7 +196,7 @@ function RewardSheet({ visible, onClose, editing, accent }: { visible: boolean; 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} testID="reward-sheet-backdrop" />
+        <Pressable style={styles.backdropTap} onPress={onClose} testID="reward-sheet-backdrop" />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={styles.grabber} />
           <View style={styles.sheetHeader}>
@@ -204,7 +205,7 @@ function RewardSheet({ visible, onClose, editing, accent }: { visible: boolean; 
               <X size={20} color={colors.onSurface} weight="bold" />
             </Pressable>
           </View>
-          <KeyboardAwareScrollView contentContainerStyle={{ gap: Spacing.lg, paddingBottom: Spacing.lg }} bottomOffset={20} showsVerticalScrollIndicator={false}>
+          <FormScrollView testID="reward-sheet-scroll" style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: Spacing.lg, paddingBottom: Spacing.lg }} bottomOffset={20} showsVerticalScrollIndicator={false}>
             <View style={styles.field}>
               <Text style={styles.label}>Titolo</Text>
               <TextInput testID="input-reward-title" value={title} onChangeText={setTitle} placeholder="Es. 1 ora di videogiochi" placeholderTextColor={colors.muted} style={styles.input} />
@@ -227,8 +228,10 @@ function RewardSheet({ visible, onClose, editing, accent }: { visible: boolean; 
               <Text style={styles.label}>Costo in punti</Text>
               <TextInput testID="input-reward-cost" value={cost} onChangeText={(t) => setCost(t.replace(/[^0-9]/g, "").slice(0, 5))} keyboardType="number-pad" placeholder="50" placeholderTextColor={colors.muted} style={styles.input} />
             </View>
+          </FormScrollView>
+          <View style={styles.footer}>
             <Btn label={editing ? "Salva" : "Crea premio"} testID="save-reward-btn" accent={accent} loading={mutation.isPending} disabled={!canSave} onPress={() => mutation.mutate()} />
-          </KeyboardAwareScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -257,7 +260,10 @@ const useStyles = makeStyles((colors) => ({
   histCost: { flexDirection: "row", alignItems: "center", gap: 4 },
   histCostText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base, color: colors.muted },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, maxHeight: "90%" },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, height: "85%", maxHeight: "90%" },
+  backdropTap: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0 },
+  scroll: { flex: 1, minHeight: 0 },
+  footer: { paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
   grabber: { alignSelf: "center", width: 44, height: 5, borderRadius: Radius.pill, backgroundColor: colors.border, marginBottom: Spacing.md },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.lg },
   sheetTitle: { fontFamily: Fonts.displayBold, fontSize: FontSize.xxl, color: colors.onSurface },

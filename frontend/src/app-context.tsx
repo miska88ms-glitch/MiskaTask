@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, setActiveMemberIdHeader, setAuthToken, type FamilyPayload, type Member } from "@/src/api";
 import { storage } from "@/src/utils/storage";
 import { registerForPush } from "@/src/push";
+import { detachWebPush } from "@/src/pwa/web-push";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -68,7 +69,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const err = familyQuery.error as (Error & { status?: number }) | null;
     if (err && err.status === 401) {
-      void signOut();
+      void signOut().catch(() => console.warn("Impossibile completare l’uscita: notifiche ancora attive"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [familyQuery.error]);
@@ -181,18 +182,21 @@ export function AppProvider({ children }: PropsWithChildren) {
   };
 
   const selectMember: AppContextValue["selectMember"] = async (member) => {
+    if (activeMemberId && activeMemberId !== member.member_id) await detachWebPush();
     setActiveMemberId(member.member_id);
     setActiveMemberIdHeader(member.member_id);
     await storage.setItem(ACTIVE_KEY, member.member_id);
   };
 
   const clearActiveMember = async () => {
+    await detachWebPush();
     setActiveMemberId(null);
     setActiveMemberIdHeader(null);
     await storage.removeItem(ACTIVE_KEY);
   };
 
   const signOut = async () => {
+    await detachWebPush();
     await storage.secureRemove(TOKEN_KEY);
     await storage.removeItem(ACTIVE_KEY);
     setAuthToken(null);

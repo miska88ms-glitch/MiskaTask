@@ -1,0 +1,65 @@
+{
+  "summary": "Iterazione 4: backend Web Push API + transport testati con successo; PWA metadata/SW/offline validati su web preview. Blocco critico frontend: le chiamate API dal client web vanno a /undefined/api/*, quindi create/join famiglia falliscono in UI.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Auth flows (create-family, join-family)",
+        "issue": "Il frontend web invia POST a https://family-planner-133.preview.emergentagent.com/undefined/api/... (non a /api/...). In UI compare 'Impossibile creare la famiglia' e 'Codice non valido' anche con codice valido.",
+        "testID": "submit-create-family / submit-join-btn",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Login -> Crea famiglia / Unisciti con codice",
+        "issue": "Mismatch risoluzione backend URL lato web: BASE in src/api.ts risulta undefined (Constants.expoConfig.extra.backendUrl non disponibile in runtime web).",
+        "affected_testIDs": [
+          "create-family-btn",
+          "submit-create-family",
+          "join-family-btn",
+          "submit-join-btn"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4_web_push_api.py",
+    "/app/backend/tests/test_iter4_web_push_transport.py",
+    "/app/test_reports/pytest/iter4_results.xml"
+  ],
+  "action_items": [
+    "Correggere BASE URL frontend web (src/api.ts): fallback robusto a process.env.EXPO_PUBLIC_BACKEND_URL o origin, evitando /undefined/api/*.",
+    "Dopo fix URL, rieseguire regressione completa auth-gated: create family, join with code+PIN, persistenza sessione, task/calendar/chat/rewards.",
+    "Rieseguire test Profile -> install screen -> web push settings con sessione autenticata reale.",
+    "Verifica fisica device richiesta per ricezione push reale (headless non prova trasporto end-to-end su device)."
+  ],
+  "critical_code_review_comments": [
+    "src/api.ts usa BASE = `${Constants.expoConfig?.extra?.backendUrl}/api`; su web preview backendUrl risulta undefined e produce richieste /undefined/api/*.",
+    "public/index.html + manifest + sw.js sono corretti e coerenti con requisiti PWA (lang it, title Family Task, display standalone, scope/start_url /).",
+    "SW cache limitata a asset pubblici (/offline.html + icone), nessuna cache API/sessione: confermato anche via cacheDump runtime.",
+    "Backend /api/web-push/*: auth/rbac/isolamento endpoint per device/famiglia e validazioni 401/403/422 passate nei test API.",
+    "Transport tests sono MOCKED SOLO nei test unitari, come richiesto."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter4_web_push_api.py",
+    "/app/backend/tests/test_iter4_web_push_transport.py",
+    "/app/memory/test_credentials.md",
+    "/app/test_result.md",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 nei nuovi test iter4)",
+    "frontend": "60% (PWA metadata/install/offline OK; auth-gated regressioni bloccate da BASE URL undefined)"
+  },
+  "seed_data_creation": "Creati fixture reali via API: Famiglia PWA Test (family_id fam_4a6721135968, invite_code 63RMST), Mamma PWA PIN1234, Luca PWA PIN1111. Credenziali salvate in /app/memory/test_credentials.md.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Confermare fix URL facendo log rete: non devono più apparire richieste a /undefined/api/*. Ripartire da create/join UI e completare flussi task/calendario/chat/premi. iPhone WebKit reale e installazione nativa/push delivery restano da validare su device fisico.",
+  "rca_of_issue": "RCA: in web preview `Constants.expoConfig?.extra?.backendUrl` risulta undefined; BASE API diventa '/undefined/api'. Repro: login -> join-family -> submit-join-btn con codice valido (63RMST) => toast 'Codice non valido'; network mostra POST /undefined/api/family/join (200 HTML), parse/family payload fallisce e il catch UI mostra errore. Stesso pattern su create-family (/undefined/api/family/create). Mitigazione: fallback esplicito URL backend da env web runtime e fail-fast con messaggio tecnico se URL mancante."
+}

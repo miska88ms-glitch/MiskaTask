@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import { ArrowsClockwise, CaretRight, Copy, Gift, PencilSimple, ShareNetwork, SignOut, UsersThree } from "phosphor-react-native";
+import { ArrowsClockwise, CaretRight, Copy, DeviceMobile, Gift, PencilSimple, ShareNetwork, SignOut, UsersThree } from "phosphor-react-native";
 
 import { ACCENTS, accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Avatar } from "@/src/components/ui";
@@ -57,12 +57,16 @@ export default function Profilo() {
 
   const shareCode = async () => {
     if (!code) return;
+    const message = Platform.OS === "web"
+      ? `Unisciti alla nostra famiglia su Family Task! Apri ${window.location.origin}/join-family e inserisci il codice: ${code}`
+      : `Unisciti alla nostra famiglia su Family Task! Apri l'app, scegli "Unisciti con un codice" e inserisci: ${code}`;
     try {
-      await Share.share({
-        message: `Unisciti alla nostra famiglia su Family Task! 👨‍👩‍👧 Apri l'app, scegli "Unisciti con un codice" e inserisci: ${code}`,
-      });
-    } catch {
-      /* user dismissed */
+      if (Platform.OS === "web") {
+        if (navigator.share) await navigator.share({ title: "Family Task", text: message });
+        else { await Clipboard.setStringAsync(message); toast("Invito con link copiato", "success"); }
+      } else await Share.share({ message });
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) toast("Condivisione non riuscita. Puoi copiare il codice.", "error");
     }
   };
 
@@ -146,6 +150,14 @@ export default function Profilo() {
         </View>
 
         {/* Family + actions */}
+        {Platform.OS === "web" && <View style={styles.section}>
+          <Text testID="profile-webapp-title" style={styles.sectionTitle}>Family Task sul telefono</Text>
+          <Pressable testID="profile-install-app-button" accessibilityRole="button" onPress={() => router.push("/install-app")} style={styles.listRow}>
+            <DeviceMobile size={24} color={accent.color} weight="fill" />
+            <Text style={styles.listLabel}>Installa e gestisci notifiche</Text>
+            <CaretRight size={18} color={colors.muted} weight="bold" />
+          </Pressable>
+        </View>}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Famiglia</Text>
           <View style={styles.list}>
@@ -169,11 +181,11 @@ export default function Profilo() {
         </View>
 
         <View style={styles.section}>
-          <Pressable testID="switch-user-btn" onPress={clearActiveMember} style={[styles.actionBtn, { backgroundColor: colors.surfaceSecondary }]}>
+          <Pressable testID="switch-user-btn" onPress={() => clearActiveMember().catch((e: Error) => toast(e.message, "error"))} style={[styles.actionBtn, { backgroundColor: colors.surfaceSecondary }]}>
             <ArrowsClockwise size={20} color={colors.onSurface} weight="bold" />
             <Text style={styles.actionText}>Cambia utente</Text>
           </Pressable>
-          <Pressable testID="signout-btn" onPress={signOut} style={[styles.actionBtn, { backgroundColor: colors.brandTertiary }]}>
+          <Pressable testID="signout-btn" onPress={() => signOut().catch((e: Error) => toast(e.message, "error"))} style={[styles.actionBtn, { backgroundColor: colors.brandTertiary }]}>
             <SignOut size={20} color={colors.error} weight="bold" />
             <Text style={[styles.actionText, { color: colors.error }]}>Esci dalla famiglia</Text>
           </Pressable>

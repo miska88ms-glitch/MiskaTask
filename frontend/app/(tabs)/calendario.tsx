@@ -37,9 +37,8 @@ export default function Calendario() {
     queryFn: () => api.activities(rangeStart, rangeEnd),
   });
 
-  const all = activitiesQuery.data ?? [];
+  const all = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data]);
   const daysWithItems = useMemo(() => new Set(all.map((a) => a.date)), [all]);
-  const memberById = useMemo(() => Object.fromEntries(members.map((m) => [m.member_id, m])), [members]);
 
   const forDay = all.filter((a) => a.date === selected);
   const grouped = useMemo(() => {
@@ -108,6 +107,7 @@ export default function Calendario() {
                 {items.map((a) => (
                   <ActivityCard
                     key={a.id}
+                    testPrefix="calendar-"
                     activity={a}
                     assignee={member}
                     canComplete={canComplete(a)}
@@ -121,7 +121,7 @@ export default function Calendario() {
       </ScrollView>
 
       <Pressable
-        testID="add-activity-fab"
+        testID="calendar-add-activity-fab"
         onPress={() => {
           setEditing(null);
           setSheetOpen(true);

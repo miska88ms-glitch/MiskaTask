@@ -1,36 +1,24 @@
-import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { useIsFocused, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GoogleLogo, HouseLine, Sparkle, UsersThree } from "phosphor-react-native";
+import { DeviceMobile, HouseLine, Sparkle, UsersThree } from "phosphor-react-native";
 
 import { Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Btn } from "@/src/components/ui";
-import { useApp } from "@/src/app-context";
-import { useToast } from "@/src/components/toast";
 
 export default function Login() {
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { signInWithGoogle } = useApp();
-  const toast = useToast();
-  const [loading, setLoading] = useState(false);
+  const focused = useIsFocused();
 
-  const google = async () => {
-    setLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch {
-      toast("Accesso non riuscito, riprova", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // A previous login route can remain in Stack history after sign-out.
+  // Don't keep hidden duplicate interactive controls mounted behind the active page.
+  if (!focused) return null;
 
   return (
-    <View style={styles.root}>
+    <View testID="login-screen" style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
@@ -68,14 +56,6 @@ export default function Login() {
             onPress={() => router.push("/create-family")}
           />
           <Btn
-            label="Accedi con Google"
-            testID="google-login-btn"
-            variant="ghost"
-            loading={loading}
-            icon={<GoogleLogo size={22} color={colors.brandPrimary} weight="fill" />}
-            onPress={google}
-          />
-          <Btn
             label="Unisciti con un codice"
             testID="join-family-btn"
             variant="soft"
@@ -85,6 +65,10 @@ export default function Login() {
           <Text style={styles.hint}>
             Crea una famiglia come capo, oppure unisciti con il codice invito ricevuto.
           </Text>
+          {Platform.OS === "web" && <Pressable testID="login-install-app-button" accessibilityRole="button" onPress={() => router.push("/install-app")} style={({ pressed }) => [styles.installLink, { opacity: pressed ? 0.7 : 1 }]}>
+            <DeviceMobile size={20} color={colors.onBrandTertiary} weight="fill" />
+            <Text testID="login-install-app-label" style={styles.installText}>Family Task sulla Home del telefono</Text>
+          </Pressable>}
         </View>
       </ScrollView>
     </View>
@@ -129,4 +113,6 @@ const useStyles = makeStyles((colors) => ({
   bulletText: { fontFamily: Fonts.bodySemibold, fontSize: FontSize.base, color: colors.onSurface, flex: 1 },
   actions: { gap: Spacing.md },
   hint: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: colors.muted, textAlign: "center" },
+  installLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, minHeight: 48, marginTop: Spacing.sm },
+  installText: { flexShrink: 1, fontFamily: Fonts.bodyBold, fontSize: FontSize.base, color: colors.onBrandTertiary },
 }));

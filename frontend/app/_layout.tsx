@@ -17,6 +17,7 @@ import { AppProvider, useApp } from "@/src/app-context";
 import { ToastProvider } from "@/src/components/toast";
 import { storage } from "@/src/utils/storage";
 import { Fonts, FontSize, Radius, Spacing, useTheme } from "@/src/theme";
+import { PwaProvider } from "@/src/pwa/provider";
 
 LogBox.ignoreAllLogs(true);
 
@@ -55,14 +56,14 @@ function Gate() {
     const root = segments[0];
 
     if (status === "unauth") {
-      if (root !== "login" && root !== "create-family" && root !== "join-family") router.replace("/login");
+      if (root !== "login" && root !== "create-family" && root !== "join-family" && root !== "install-app") router.replace("/login");
       return;
     }
     if (!activeMember) {
-      if (root !== "select-member") router.replace("/select-member");
+      if (root !== "select-member" && root !== "install-app") router.replace("/select-member");
       return;
     }
-    if (root !== "(tabs)" && root !== "manage-members" && root !== "task" && root !== "rewards") router.replace("/(tabs)");
+    if (root !== "(tabs)" && root !== "manage-members" && root !== "task" && root !== "rewards" && root !== "install-app") router.replace("/(tabs)");
   }, [status, activeMember, segments, router]);
 
   // Push: tap handlers + denied nudge
@@ -116,6 +117,7 @@ function Gate() {
         <Stack.Screen name="login" />
         <Stack.Screen name="create-family" />
         <Stack.Screen name="join-family" />
+        <Stack.Screen name="install-app" />
         <Stack.Screen name="select-member" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="manage-members" />
@@ -179,7 +181,7 @@ export default function RootLayout() {
               {fontsLoaded ? (
                 <AppProvider>
                   <ToastProvider>
-                    <Gate />
+                    <PwaProvider><Gate /></PwaProvider>
                   </ToastProvider>
                 </AppProvider>
               ) : (

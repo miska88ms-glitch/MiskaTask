@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ import { dayjs } from "@/src/date";
 
 const POINT_OPTIONS = [5, 10, 15, 20, 25];
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const FormScrollView = Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
 
 export function ActivitySheet({
   visible,
@@ -153,7 +154,7 @@ export function ActivitySheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropTap} onPress={onClose} testID="sheet-backdrop" />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View testID="activity-sheet-panel" style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={styles.grabber} />
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>
@@ -164,7 +165,11 @@ export function ActivitySheet({
             </Pressable>
           </View>
 
-          <KeyboardAwareScrollView
+          <FormScrollView
+            testID="activity-sheet-scroll"
+            style={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             contentContainerStyle={{ gap: Spacing.lg, paddingBottom: Spacing.lg }}
             bottomOffset={20}
             showsVerticalScrollIndicator={false}
@@ -346,6 +351,8 @@ export function ActivitySheet({
               </View>
             ) : null}
 
+          </FormScrollView>
+          <View style={styles.footer}>
             <Btn
               label={editing ? "Salva" : "Aggiungi"}
               testID="save-activity-btn"
@@ -354,7 +361,7 @@ export function ActivitySheet({
               disabled={!canSave}
               onPress={() => mutation.mutate()}
             />
-          </KeyboardAwareScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -363,19 +370,22 @@ export function ActivitySheet({
 
 const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
-  backdropTap: { flex: 1 },
+  backdropTap: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0 },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: Radius.lg,
     borderTopRightRadius: Radius.lg,
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
+    height: "90%",
     maxHeight: "90%",
   },
+  scroll: { flex: 1, minHeight: 0 },
+  footer: { paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
   grabber: { alignSelf: "center", width: 44, height: 5, borderRadius: Radius.pill, backgroundColor: colors.border, marginBottom: Spacing.md },
   sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.lg },
   sheetTitle: { fontFamily: Fonts.displayBold, fontSize: FontSize.xxl, color: colors.onSurface },
-  closeBtn: { width: 36, height: 36, borderRadius: Radius.pill, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
+  closeBtn: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
   segment: { flexDirection: "row", backgroundColor: colors.surfaceTertiary, borderRadius: Radius.pill, padding: 4 },
   segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: Radius.pill, alignItems: "center" },
   segmentText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base, color: colors.onSurfaceTertiary },

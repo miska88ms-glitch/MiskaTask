@@ -1,7 +1,20 @@
 // Lightweight API client. Auth token + active member id are held in module
 // scope and injected into every request. AuthContext/FamilyContext set them.
 
-const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+
+function apiBase(): string {
+  const extra = Constants.expoConfig?.extra?.backendUrl;
+  // Expo single web output may omit extra; direct env access is inlined by Metro.
+  const candidate = typeof extra === "string" && extra.trim() ? extra : process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (!candidate?.trim()) throw new Error("Collegamento al server non configurato. Contatta chi gestisce l’app.");
+  try {
+    const url = new URL(candidate.trim());
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error();
+    return `${url.toString().replace(/\/$/, "")}/api`;
+  } catch { throw new Error("Indirizzo del server non valido. Contatta chi gestisce l’app."); }
+}
 
 let authToken: string | null = null;
 let activeMemberId: string | null = null;
@@ -80,6 +93,9 @@ export type Comment = {
 };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (Platform.OS === "web" && typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new Error("Sei offline. Riconnettiti e riprova: la modifica non è stata salvata.");
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -87,11 +103,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
   if (activeMemberId) headers["X-Member-Id"] = activeMemberId;
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${apiBase()}${path}`, { ...options, headers });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data;
+  try { data = text ? JSON.parse(text) : null; }
+  catch { throw new Error("Risposta del server non valida. Riprova tra poco."); }
   if (!res.ok) {
-    const message = (data && (data.detail || data.message)) || "Errore di rete";
+    const detail = data && (data.detail || data.message);
+    const message = typeof detail === "string" ? detail : "Richiesta non valida. Controlla i dati e riprova.";
     const err = new Error(message) as Error & { status?: number };
     err.status = res.status;
     throw err;
@@ -129,6 +148,12 @@ export const api = {
 
   registerPush: (body: { user_id: string; platform: string; device_token: string }) =>
     request<{ status: string }>("/register-push", { method: "POST", body: JSON.stringify(body) }),
+
+  webPushConfig: () => request<{ publicKey: string }>("/web-push/config"),
+  saveWebPush: (subscription: object) => request<{ enabled: boolean }>("/web-push/subscription", { method: "PUT", body: JSON.stringify(subscription) }),
+  removeWebPush: (endpoint: string) => request<{ enabled: boolean }>("/web-push/subscription", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  webPushStatus: (endpoint: string) => request<{ enabled: boolean }>("/web-push/status", { method: "POST", body: JSON.stringify({ endpoint }) }),
+  testWebPush: (endpoint: string) => request<{ accepted: boolean }>("/web-push/test", { method: "POST", body: JSON.stringify({ endpoint }) }),
 
   me: () => request<FamilyPayload>("/auth/me"),
   family: () => request<FamilyPayload>("/family"),

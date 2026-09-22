@@ -1,0 +1,91 @@
+{
+  "summary": "Frontend-only iterazione 5: confermati fix URL auth (create/join funzionanti), Google assente, PIN+persistenza sessione OK, install screen/web-push settings caricati. Blocco critico residuo sul foglio attività mobile: assegnazione membro non tappabile nel viewport 375x667, impedendo completamento regressione task->chat->punti->premi.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ActivitySheet (Nuovo compito/impegno)",
+        "issue": "In viewport mobile 375x667, il chip assegnazione membro (`assign-mem_6e7ea717c881`) risulta fuori viewport/non cliccabile durante creazione attività.",
+        "testID": "assign-mem_6e7ea717c881",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Post-signout login assertion",
+        "issue": "Flakiness Playwright: `wait_for_selector` su `join-family-btn` va in timeout anche con schermata login visibile (duplicati testID in DOM).",
+        "testID": "join-family-btn",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Login -> Crea famiglia",
+        "issue": "Funziona dopo fix URL: creazione riuscita con codice invito WFBCLD; nessun errore /undefined osservato nei flussi completati.",
+        "affected_testIDs": [
+          "create-family-btn",
+          "submit-create-family"
+        ]
+      },
+      {
+        "flow": "Join fixture -> selezione membro -> PIN -> reload",
+        "issue": "Funziona con fixture 63RMST + Mamma PIN 1234; sessione membro preservata dopo reload.",
+        "affected_testIDs": [
+          "join-family-btn",
+          "input-invite-code",
+          "submit-join-btn",
+          "select-member-mem_710127bec220"
+        ]
+      },
+      {
+        "flow": "Profilo -> Installa app -> Web Push settings",
+        "issue": "Schermata install e configurazione push caricano correttamente; test notifica reale/permission-denied non conclusivo in headless.",
+        "affected_testIDs": [
+          "profile-install-app-button",
+          "install-app-screen",
+          "web-push-settings"
+        ]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Bottom sheet creazione attività",
+        "issues": [
+          "Interazione touch critica non raggiungibile su viewport mobile target; rischio regressione usabilità reale."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/artifacts_iter5_load/home_load.png",
+    "/app/test_reports/artifacts_iter5_flow2/error_state.png",
+    "/app/test_reports/artifacts_iter5_flow3/error_state.png",
+    "/app/test_reports/artifacts_iter5_install/error_state.png",
+    "/app/memory/test_credentials.md"
+  ],
+  "action_items": [
+    "Correggere ActivitySheet mobile (scroll/focus/keyboard layout) per rendere cliccabile `assign-*` su viewport 375x667.",
+    "Stabilizzare rendering/visibility di elementi login con stesso testID dopo signout (evitare timeout falsi nei test).",
+    "Dopo fix ActivitySheet, ritestare flusso completo richiesto: task assegnato a Luca -> nota/chat -> completamento punti -> premi create/redeem -> deep-link task attivo."
+  ],
+  "critical_code_review_comments": [
+    "Richiesta utente rispettata lato UI: pulsante Google rimosso da login (count testo Google = 0).",
+    "In `app-context.tsx` resta codice `signInWithGoogle`/`googleSession` non più usato dalla schermata login (debito tecnico, non blocco funzionale).",
+    "`src/api.ts` con fallback env e validazione URL ha sbloccato create/join durante questo retest."
+  ],
+  "updated_files": [
+    "/app/memory/test_credentials.md",
+    "/app/test_reports/iteration_5.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (skipped by request)",
+    "frontend": "70% (auth+session+install path OK; activity/reward deep regression blocked by ActivitySheet assignment interaction)"
+  },
+  "seed_data_creation": "Creata nuova famiglia via UI in iter5: capo 'QA Mamma' PIN 2222, invite code WFBCLD (registrato in /app/memory/test_credentials.md).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Partire da fixture 63RMST o nuova WFBCLD. Verificare prima fix su `assign-*` chips nel sheet attività in viewport 375x667. Poi eseguire regressione completa task/note/chat/punti/premi/deep-link. In headless non dichiarare consegna push reale su device.",
+  "rca_of_issue": "RCA primaria: nel bottom-sheet attività, dopo compilazione titolo, l'area di assegnazione membro risulta non interagibile su mobile web (errore Playwright: element outside viewport nonostante scroll auto). Probabile combinazione di altezza sheet + gestione focus/keyboard/scroll container. Repro: join 63RMST -> Mamma PIN1234 -> tab Oggi -> add-activity-fab -> input titolo -> tap `assign-mem_6e7ea717c881` => click fallisce. Mitigazione: assicurare scrollTo/visibility effettiva del row assegnazione o layout adattivo con area actions sempre raggiungibile."
+}

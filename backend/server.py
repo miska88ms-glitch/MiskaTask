@@ -3,6 +3,7 @@ import uuid
 import secrets
 import random
 import logging
+import asyncio
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
@@ -14,6 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from passlib.context import CryptContext
+from web_push import WebPush, create_web_push_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -38,6 +40,8 @@ logger = logging.getLogger("familia")
 PUSH_BASE_URL = "https://integrations.emergentagent.com"
 PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
 _push_client = httpx.AsyncClient(base_url=PUSH_BASE_URL, headers={"X-Push-Key": PUSH_KEY}, timeout=10.0)
+web_push = WebPush(db)
+_push_tasks = set()
 
 
 async def send_push(recipients, data: dict, idempotency_key: Optional[str] = None) -> None:
@@ -46,6 +50,22 @@ async def send_push(recipients, data: dict, idempotency_key: Optional[str] = Non
         return
     if "title" not in data or "message" not in data:
         return
+    # Delivery runs independently from saving a task/message. Retain task references.
+    if len(_push_tasks) >= 100:
+        logger.warning("Notification queue full; delivery skipped")
+        return
+    task = asyncio.create_task(_deliver_push(recipients, data, idempotency_key))
+    _push_tasks.add(task)
+    task.add_done_callback(_push_tasks.discard)
+
+
+async def _deliver_push(recipients, data, idempotency_key):
+    try:
+        await web_push.send(recipients, data)
+    except Exception as exc:
+        logger.warning("Web push unavailable: %s", type(exc).__name__)
+    if not PUSH_KEY or PUSH_KEY == "placeholder":
+        return  # Native relay isn't configured; web push needs no relay key.
     payload: dict = {"recipients": recipients[:100], "data": data}
     if idempotency_key:
         payload["$idempotency_key"] = idempotency_key
@@ -1045,6 +1065,7 @@ async def get_presets(ctx: dict = Depends(require_auth)):
 # --------------------------------------------------------------------------- #
 # App wiring
 # --------------------------------------------------------------------------- #
+api_router.include_router(create_web_push_router(web_push, require_auth, get_actor))
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1070,10 +1091,16 @@ async def create_indexes():
         await db.comments.create_index([("activity_id", 1), ("created_at", 1)])
         await db.rewards.create_index("family_id")
         await db.redemptions.create_index([("family_id", 1), ("created_at", -1)])
+        await db.web_push_subscriptions.create_index("member_id")
     except Exception as e:
         logger.warning(f"Index creation issue: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    for task in list(_push_tasks):
+        task.cancel()
+    if _push_tasks:
+        await asyncio.gather(*_push_tasks, return_exceptions=True)
+    await _push_client.aclose()
     client.close()
