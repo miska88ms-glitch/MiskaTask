@@ -5,7 +5,7 @@ import random
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, List
 
 import httpx
 from fastapi import FastAPI, APIRouter, Header, HTTPException, Depends
@@ -145,6 +145,20 @@ class ActivityIn(BaseModel):
     date: str
     note: Optional[str] = None
     time: Optional[str] = None
+    end_time: Optional[str] = None
+    dates: Optional[List[str]] = None  # for recurring: create one activity per date
+
+
+class RewardIn(BaseModel):
+    title: str
+    icon: str = "gift"
+    cost: int
+
+
+class RewardUpdate(BaseModel):
+    title: Optional[str] = None
+    icon: Optional[str] = None
+    cost: Optional[int] = None
 
 
 class ActivityUpdate(BaseModel):
@@ -155,6 +169,7 @@ class ActivityUpdate(BaseModel):
     date: Optional[str] = None
     note: Optional[str] = None
     time: Optional[str] = None
+    end_time: Optional[str] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -184,6 +199,7 @@ def activity_public(a: dict) -> dict:
         "assigned_to": a.get("assigned_to"),
         "date": a.get("date"),
         "time": a.get("time"),
+        "end_time": a.get("end_time"),
         "note": a.get("note"),
         "has_note": bool(a.get("note")),
         "comment_count": a.get("comment_count", 0),
@@ -653,35 +669,48 @@ async def create_activity(
     if not target:
         raise HTTPException(status_code=400, detail="Membro assegnato non valido")
 
-    activity = {
-        "id": new_id("act"),
-        "family_id": family["family_id"],
-        "type": atype,
-        "title": body.title.strip(),
-        "icon": body.icon,
-        "points": max(0, body.points) if atype == "compito" else 0,
-        "assigned_to": body.assigned_to,
-        "date": body.date,
-        "time": body.time,
-        "note": body.note,
-        "status": "todo",
-        "created_by": actor["member_id"],
-        "completed_by": None,
-        "completed_at": None,
-        "deleted_at": None,
-        "created_at": now_utc(),
-    }
-    await db.activities.insert_one(dict(activity))
-    if activity["assigned_to"] != actor["member_id"]:
+    dates = body.dates if body.dates else [body.date]
+    dates = sorted({d for d in dates if d})
+    if not dates:
+        dates = [body.date]
+
+    created = []
+    for d in dates:
+        created.append(
+            {
+                "id": new_id("act"),
+                "family_id": family["family_id"],
+                "type": atype,
+                "title": body.title.strip(),
+                "icon": body.icon,
+                "points": max(0, body.points) if atype == "compito" else 0,
+                "assigned_to": body.assigned_to,
+                "date": d,
+                "time": body.time,
+                "end_time": body.end_time,
+                "note": body.note,
+                "status": "todo",
+                "created_by": actor["member_id"],
+                "completed_by": None,
+                "completed_at": None,
+                "comment_count": 0,
+                "deleted_at": None,
+                "created_at": now_utc(),
+            }
+        )
+    await db.activities.insert_many([dict(a) for a in created])
+    first = created[0]
+    if first["assigned_to"] != actor["member_id"]:
+        extra = f" (x{len(created)})" if len(created) > 1 else ""
         await send_push(
-            [activity["assigned_to"]],
+            [first["assigned_to"]],
             {
                 "title": "📋 Nuovo compito" if atype == "compito" else "📌 Nuovo impegno",
-                "message": f"{actor['name']} ti ha assegnato: {activity['title']}",
-                "action_url": f"/task/{activity['id']}",
+                "message": f"{actor['name']} ti ha assegnato: {first['title']}{extra}",
+                "action_url": f"/task/{first['id']}",
             },
         )
-    return activity_public(activity)
+    return activity_public(first)
 
 
 @api_router.put("/activities/{activity_id}")
@@ -827,6 +856,162 @@ async def delete_activity(
 
 
 # --------------------------------------------------------------------------- #
+# Routes: rewards
+# --------------------------------------------------------------------------- #
+def reward_public(r: dict) -> dict:
+    return {
+        "id": r["id"],
+        "family_id": r["family_id"],
+        "title": r["title"],
+        "icon": r.get("icon", "gift"),
+        "cost": r.get("cost", 0),
+    }
+
+
+def redemption_public(r: dict) -> dict:
+    created = r.get("created_at")
+    return {
+        "id": r["id"],
+        "reward_id": r.get("reward_id"),
+        "reward_title": r.get("reward_title"),
+        "reward_icon": r.get("reward_icon", "gift"),
+        "member_id": r.get("member_id"),
+        "member_name": r.get("member_name"),
+        "member_avatar": r.get("member_avatar"),
+        "cost": r.get("cost", 0),
+        "created_at": created.isoformat() if isinstance(created, datetime) else created,
+    }
+
+
+@api_router.get("/rewards")
+async def list_rewards(ctx: dict = Depends(require_auth)):
+    rs = await db.rewards.find(
+        {"family_id": ctx["family"]["family_id"], "deleted_at": None}, {"_id": 0}
+    ).to_list(200)
+    rs.sort(key=lambda r: r.get("cost", 0))
+    return [reward_public(r) for r in rs]
+
+
+@api_router.post("/rewards")
+async def create_reward(
+    body: RewardIn, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor or actor.get("role") != "capo":
+        raise HTTPException(status_code=403, detail="Solo il capo può creare premi")
+    reward = {
+        "id": new_id("rwd"),
+        "family_id": family["family_id"],
+        "title": body.title.strip(),
+        "icon": body.icon,
+        "cost": max(1, body.cost),
+        "created_by": actor["member_id"],
+        "deleted_at": None,
+        "created_at": now_utc(),
+    }
+    await db.rewards.insert_one(dict(reward))
+    return reward_public(reward)
+
+
+@api_router.put("/rewards/{reward_id}")
+async def update_reward(
+    reward_id: str,
+    body: RewardUpdate,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor or actor.get("role") != "capo":
+        raise HTTPException(status_code=403, detail="Solo il capo può modificare premi")
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if "title" in updates:
+        updates["title"] = updates["title"].strip()
+    if "cost" in updates:
+        updates["cost"] = max(1, int(updates["cost"]))
+    if updates:
+        await db.rewards.update_one(
+            {"id": reward_id, "family_id": family["family_id"]}, {"$set": updates}
+        )
+    r = await db.rewards.find_one({"id": reward_id, "family_id": family["family_id"]}, {"_id": 0})
+    if not r:
+        raise HTTPException(status_code=404, detail="Premio non trovato")
+    return reward_public(r)
+
+
+@api_router.delete("/rewards/{reward_id}")
+async def delete_reward(
+    reward_id: str, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor or actor.get("role") != "capo":
+        raise HTTPException(status_code=403, detail="Solo il capo può rimuovere premi")
+    await db.rewards.update_one(
+        {"id": reward_id, "family_id": family["family_id"]}, {"$set": {"deleted_at": now_utc()}}
+    )
+    return {"ok": True}
+
+
+@api_router.post("/rewards/{reward_id}/redeem")
+async def redeem_reward(
+    reward_id: str, ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
+):
+    family = ctx["family"]
+    actor = await get_actor(family["family_id"], x_member_id)
+    if not actor:
+        raise HTTPException(status_code=403, detail="Membro non valido")
+    reward = await db.rewards.find_one(
+        {"id": reward_id, "family_id": family["family_id"], "deleted_at": None}, {"_id": 0}
+    )
+    if not reward:
+        raise HTTPException(status_code=404, detail="Premio non trovato")
+    cost = reward.get("cost", 0)
+    if actor.get("points", 0) < cost:
+        raise HTTPException(status_code=400, detail="Punti insufficienti per questo premio")
+    await db.members.update_one(
+        {"member_id": actor["member_id"], "family_id": family["family_id"]},
+        {"$inc": {"points": -cost}},
+    )
+    redemption = {
+        "id": new_id("rdm"),
+        "family_id": family["family_id"],
+        "reward_id": reward_id,
+        "reward_title": reward["title"],
+        "reward_icon": reward.get("icon", "gift"),
+        "member_id": actor["member_id"],
+        "member_name": actor["name"],
+        "member_avatar": actor.get("avatar"),
+        "cost": cost,
+        "created_at": now_utc(),
+    }
+    await db.redemptions.insert_one(dict(redemption))
+    capos = await db.members.find(
+        {"family_id": family["family_id"], "role": "capo", "deleted_at": None}, {"_id": 0}
+    ).to_list(50)
+    recips = {c["member_id"] for c in capos}
+    recips.discard(actor["member_id"])
+    await send_push(
+        list(recips),
+        {"title": "🎁 Premio riscattato", "message": f"{actor['name']} ha riscattato: {reward['title']}"},
+    )
+    updated = await db.members.find_one(
+        {"member_id": actor["member_id"], "family_id": family["family_id"]}, {"_id": 0}
+    )
+    return {"redemption": redemption_public(redemption), "member": member_public(updated)}
+
+
+@api_router.get("/redemptions")
+async def list_redemptions(ctx: dict = Depends(require_auth)):
+    rs = await db.redemptions.find(
+        {"family_id": ctx["family"]["family_id"]}, {"_id": 0}
+    ).to_list(200)
+    rs.sort(key=lambda r: r.get("created_at") or now_utc(), reverse=True)
+    return [redemption_public(r) for r in rs[:50]]
+
+
+# --------------------------------------------------------------------------- #
 # Routes: leaderboard + presets
 # --------------------------------------------------------------------------- #
 @api_router.get("/leaderboard")
@@ -883,6 +1068,8 @@ async def create_indexes():
         await db.members.create_index("family_id")
         await db.activities.create_index([("family_id", 1), ("date", 1)])
         await db.comments.create_index([("activity_id", 1), ("created_at", 1)])
+        await db.rewards.create_index("family_id")
+        await db.redemptions.create_index([("family_id", 1), ("created_at", -1)])
     except Exception as e:
         logger.warning(f"Index creation issue: {e}")
 

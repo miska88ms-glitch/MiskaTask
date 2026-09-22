@@ -19,8 +19,10 @@ import { getIcon, CHORE_ICONS, COMMITMENT_ICONS } from "@/src/icons";
 import { api, type Activity } from "@/src/api";
 import { useApp } from "@/src/app-context";
 import { useToast } from "@/src/components/toast";
+import { dayjs } from "@/src/date";
 
 const POINT_OPTIONS = [5, 10, 15, 20, 25];
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
 export function ActivitySheet({
   visible,
@@ -49,6 +51,10 @@ export function ActivitySheet({
   const [points, setPoints] = useState(10);
   const [assignedTo, setAssignedTo] = useState<string>(activeMember?.member_id ?? "");
   const [time, setTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [repeat, setRepeat] = useState(false);
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [weeks, setWeeks] = useState(4);
 
   const accent = accentById(activeMember?.accent_color).id;
 
@@ -61,6 +67,10 @@ export function ActivitySheet({
       setPoints(editing.points || 10);
       setAssignedTo(editing.assigned_to);
       setTime(editing.time ?? "");
+      setEndTime(editing.end_time ?? "");
+      setRepeat(false);
+      setWeekdays([]);
+      setWeeks(4);
     } else {
       setType(isCapo ? "compito" : "impegno");
       setTitle("");
@@ -68,21 +78,58 @@ export function ActivitySheet({
       setPoints(10);
       setAssignedTo(activeMember?.member_id ?? members[0]?.member_id ?? "");
       setTime("");
+      setEndTime("");
+      setRepeat(false);
+      setWeekdays([]);
+      setWeeks(4);
     }
   }, [visible, editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const iconOptions = type === "compito" ? CHORE_ICONS : COMMITMENT_ICONS;
 
+  const toggleRepeat = () => {
+    haptic("selection");
+    if (!repeat) {
+      const base = dayjs(date);
+      setWeekdays([(base.day() + 6) % 7]); // Mon-based weekday of the base date
+    } else {
+      setWeekdays([]);
+    }
+    setRepeat(!repeat);
+  };
+
+  const toggleWeekday = (wd: number) => {
+    setWeekdays((cur) => (cur.includes(wd) ? cur.filter((x) => x !== wd) : [...cur, wd]));
+  };
+
+  const computeDates = (): string[] => {
+    const base = dayjs(date);
+    const set = new Set<string>();
+    for (let w = 0; w < weeks; w++) {
+      for (const wd of weekdays) {
+        const d = base.startOf("week").add(wd, "day").add(w, "week");
+        if (d.isBefore(base, "day")) continue;
+        set.add(d.format("YYYY-MM-DD"));
+      }
+    }
+    if (set.size === 0) set.add(date);
+    return Array.from(set).sort();
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
+      const useRecurrence = !editing && repeat && weekdays.length > 0;
+      const dates = useRecurrence ? computeDates() : undefined;
       const body = {
         type,
         title: title.trim(),
         icon,
         points: type === "compito" ? points : 0,
         assigned_to: assignedTo,
-        date,
+        date: dates ? dates[0] : date,
         time: time.trim() || null,
+        end_time: endTime.trim() || null,
+        dates,
       };
       if (editing) return api.updateActivity(editing.id, body);
       return api.createActivity(body);
@@ -232,17 +279,72 @@ export function ActivitySheet({
               </View>
             </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Orario (facoltativo)</Text>
-              <TextInput
-                testID="input-time"
-                value={time}
-                onChangeText={setTime}
-                placeholder="Es. 16:30"
-                placeholderTextColor={colors.muted}
-                style={styles.input}
-              />
+            <View style={styles.timeRow}>
+              <View style={[styles.field, { flex: 1 }]}>
+                <Text style={styles.label}>{type === "impegno" ? "Dalle" : "Orario"} (facolt.)</Text>
+                <TextInput
+                  testID="input-time"
+                  value={time}
+                  onChangeText={setTime}
+                  placeholder="Es. 19:00"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
+              <View style={[styles.field, { flex: 1 }]}>
+                <Text style={styles.label}>Alle (facolt.)</Text>
+                <TextInput
+                  testID="input-end-time"
+                  value={endTime}
+                  onChangeText={setEndTime}
+                  placeholder="Es. 20:00"
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+              </View>
             </View>
+
+            {!editing ? (
+              <View style={styles.field}>
+                <Pressable testID="repeat-toggle" onPress={toggleRepeat} style={styles.repeatRow}>
+                  <Text style={styles.label}>🔁 Ripeti ogni settimana</Text>
+                  <View style={[styles.switch, { backgroundColor: repeat ? accentById(accent).color : colors.surfaceTertiary }]}>
+                    <View style={[styles.knob, { alignSelf: repeat ? "flex-end" : "flex-start" }]} />
+                  </View>
+                </Pressable>
+
+                {repeat ? (
+                  <View style={{ gap: Spacing.md }}>
+                    <View style={styles.weekRow}>
+                      {WEEKDAYS.map((lbl, i) => {
+                        const sel = weekdays.includes(i);
+                        return (
+                          <Pressable
+                            key={lbl}
+                            testID={`weekday-${i}`}
+                            onPress={() => toggleWeekday(i)}
+                            style={[styles.weekChip, { backgroundColor: sel ? accentById(accent).color : colors.surfaceTertiary }]}
+                          >
+                            <Text style={[styles.weekChipText, { color: sel ? accentById(accent).on : colors.onSurfaceTertiary }]}>{lbl}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.weeksRow}>
+                      <Text style={styles.label}>Per</Text>
+                      <Pressable testID="weeks-minus" onPress={() => setWeeks((w) => Math.max(1, w - 1))} style={styles.stepBtn}>
+                        <Text style={styles.stepText}>−</Text>
+                      </Pressable>
+                      <Text style={styles.weeksNum}>{weeks}</Text>
+                      <Pressable testID="weeks-plus" onPress={() => setWeeks((w) => Math.min(12, w + 1))} style={styles.stepBtn}>
+                        <Text style={styles.stepText}>+</Text>
+                      </Pressable>
+                      <Text style={styles.label}>settimane</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
             <Btn
               label={editing ? "Salva" : "Aggiungi"}
@@ -282,6 +384,7 @@ const useStyles = makeStyles((colors) => ({
   presetChip: { backgroundColor: colors.surfaceTertiary, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: Radius.pill },
   presetChipText: { fontFamily: Fonts.bodySemibold, fontSize: FontSize.sm, color: colors.onSurfaceTertiary },
   field: { gap: Spacing.sm },
+  timeRow: { flexDirection: "row", gap: Spacing.md },
   label: { fontFamily: Fonts.bodyBold, fontSize: FontSize.base, color: colors.onSurface },
   input: {
     backgroundColor: colors.surfaceSecondary,
@@ -302,4 +405,14 @@ const useStyles = makeStyles((colors) => ({
   memberRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   memberChip: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.pill, borderWidth: 2 },
   memberChipText: { fontFamily: Fonts.bodyBold, fontSize: FontSize.base, color: colors.onSurface },
+  repeatRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switch: { width: 48, height: 28, borderRadius: Radius.pill, padding: 3, justifyContent: "center" },
+  knob: { width: 22, height: 22, borderRadius: Radius.pill, backgroundColor: "#FFFFFF" },
+  weekRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  weekChip: { flex: 1, minWidth: 42, paddingVertical: 10, borderRadius: Radius.md, alignItems: "center" },
+  weekChipText: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm },
+  weeksRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  stepBtn: { width: 40, height: 40, borderRadius: Radius.pill, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
+  stepText: { fontFamily: Fonts.displayBold, fontSize: FontSize.xl, color: colors.onSurface },
+  weeksNum: { fontFamily: Fonts.displayBold, fontSize: FontSize.xl, color: colors.onSurface, minWidth: 24, textAlign: "center" },
 }));

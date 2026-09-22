@@ -28,13 +28,13 @@ App mobile per la famiglia: i membri sono utenti diversi; si assegnano compiti d
 - Colore accento personalizzabile per singolo utente.
 
 ## Implemented (2026-06)
-- Backend API completa: auth/session (Google), family/create, family/join (codice invito), regenerate-code, auth/me, family, members CRUD + verify-pin, activities CRUD + complete/uncomplete + single GET, commenti (chat) list/add, leaderboard, presets, register-push. Indici Mongo, RBAC, soft delete, punti con rollback, notifiche push (relay Emergent) su assegnazione/chat/completamento.
-- Frontend: login (crea/Google/unisciti con codice), crea-famiglia (con nota codice + colore custom), join-family, selezione membro con PIN pad, tab Oggi/Calendario/Classifica/Profilo, dettaglio task (/task/[id]) con nota (modificabile solo da creatore+capo) e chat commenti, indicatori nota/chat sulle card, gestione membri, colore accento personalizzabile per utente (preset + ruota colore), codice invito visibile con copia/condividi/rigenera.
-- Notifiche push: expo-notifications + register-push; funziona solo dopo deploy+build reale con google-services.json.
-- Testing: iterazione 1 (26/26) + iterazione 2 (46/46) backend + E2E frontend, tutti superati.
+- Backend API: auth (Google + device family/create), invite code join/regenerate, members CRUD + verify-pin, activities CRUD + complete/uncomplete + single GET + recurring (dates[]) + end_time, commenti (chat), rewards CRUD (capo) + redeem + redemptions, leaderboard, presets, register-push. RBAC, soft delete, punti con rollback, notifiche push (assegnazione/chat/completamento/riscatto).
+- Frontend: login (crea/Google/unisciti con codice), crea-famiglia (nota codice + colore custom), join-family, selezione membro con PIN, tab Oggi/Calendario/Classifica/Profilo, dettaglio task (/task/[id]) con nota + chat, Premi (/rewards) con riscatto e storico, impegni personali con colore distinto (slate) e orario inizio–fine, compiti ricorrenti (giorni + settimane), colore accento personalizzabile per utente (preset + ruota colore), codice invito visibile (copia/condividi/rigenera).
+- Notifiche push: expo-notifications + register-push; funziona solo dopo deploy+build reale con google-services.json (in attesa dal cliente).
+- Testing: iter1 (26) + iter2 + iter3 (20) backend + E2E frontend, tutti superati.
 
 ## Backlog / next
-- P1: Premi/ricompense sbloccabili con i punti (badge, obiettivi).
-- P1: Compiti ricorrenti (settimanali) e promemoria orari.
+- Notifiche push: integrare google-services.json fornito dal cliente, poi build.
+- P1: Compiti ricorrenti - modifica/elimina di tutta la serie.
 - P2: Statistiche settimanali per membro.
 - P2: Modalità dark.

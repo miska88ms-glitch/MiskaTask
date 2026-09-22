@@ -114,6 +114,10 @@ export function accentById(value: string | undefined | null): AccentDef {
   return ACCENTS.find((a) => a.id === value) ?? ACCENTS[0];
 }
 
+// Distinct category color for personal commitments ("impegni") so they never
+// look like assignable chores. A calm slate, different from all member accents.
+export const IMPEGNO: AccentDef = { id: "impegno", label: "Impegno", color: "#475569", soft: "#E7ECF2", on: "#FFFFFF" };
+
 // --------------------------------------------------------------------------- //
 // Avatars (emoji) for family members
 // --------------------------------------------------------------------------- //

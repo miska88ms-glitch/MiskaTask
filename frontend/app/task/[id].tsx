@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, NotePencil, PaperPlaneRight, PencilSimple, Trash } from "phosphor-react-native";
 
-import { accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
+import { accentById, Fonts, FontSize, IMPEGNO, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { IconBubble, haptic } from "@/src/components/ui";
 import { ActivitySheet } from "@/src/components/activity-sheet";
 import { api, type Activity } from "@/src/api";
@@ -36,6 +36,7 @@ export default function TaskDetail() {
   const isCapo = activeMember?.role === "capo";
   const assignee = members.find((m) => m.member_id === activity?.assigned_to);
   const accent = accentById(assignee?.accent_color ?? activeMember?.accent_color);
+  const cat = activity?.type === "impegno" ? IMPEGNO : accent;
 
   const canComplete = !!activity && (isCapo || activity.assigned_to === activeMember?.member_id);
   const canEdit = !!activity && (isCapo || activity.created_by === activeMember?.member_id);
@@ -141,7 +142,7 @@ export default function TaskDetail() {
         >
           {/* Summary */}
           <View style={styles.summary}>
-            <IconBubble icon={activity.icon} color={accent.id} bubble={64} size={30} />
+            <IconBubble icon={activity.icon} color={cat.id} bubble={64} size={30} />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.title, done && styles.strike]}>{activity.title}</Text>
               <Text style={styles.meta}>
@@ -151,6 +152,7 @@ export default function TaskDetail() {
               <Text style={styles.meta}>
                 📅 {longDate(activity.date)}
                 {activity.time ? ` · ${activity.time}` : ""}
+                {activity.time && activity.end_time ? `–${activity.end_time}` : ""}
               </Text>
             </View>
           </View>
@@ -159,11 +161,11 @@ export default function TaskDetail() {
             <Pressable
               testID="task-complete-btn"
               onPress={() => toggleMutation.mutate()}
-              style={[styles.completeBtn, { backgroundColor: done ? colors.surfaceTertiary : accent.color }]}
+              style={[styles.completeBtn, { backgroundColor: done ? colors.surfaceTertiary : cat.color }]}
             >
-              <Check size={20} color={done ? colors.onSurfaceTertiary : accent.on} weight="bold" />
-              <Text style={[styles.completeText, { color: done ? colors.onSurfaceTertiary : accent.on }]}>
-                {done ? "Segna da fare" : "Segna come completato"}
+              <Check size={20} color={done ? colors.onSurfaceTertiary : cat.on} weight="bold" />
+              <Text style={[styles.completeText, { color: done ? colors.onSurfaceTertiary : cat.on }]}>
+                {done ? "Segna da fare" : activity.type === "impegno" ? "Segna come fatto" : "Segna come completato"}
               </Text>
             </Pressable>
           ) : null}

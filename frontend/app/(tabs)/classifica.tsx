@@ -1,7 +1,9 @@
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, Text, View, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { Gift } from "phosphor-react-native";
 
 import { accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Avatar } from "@/src/components/ui";
@@ -19,6 +21,7 @@ export default function Classifica() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const query = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
+  const router = useRouter();
   const members = query.data ?? [];
   const top3 = members.slice(0, 3);
   const rest = members.slice(3);
@@ -31,8 +34,16 @@ export default function Classifica() {
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Text style={styles.title}>Classifica</Text>
-        <Text style={styles.sub}>Chi guadagna più punti in famiglia?</Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Classifica</Text>
+            <Text style={styles.sub}>Chi guadagna più punti in famiglia?</Text>
+          </View>
+          <Pressable testID="open-rewards-btn" onPress={() => router.push("/rewards")} style={[styles.rewardsBtn, { backgroundColor: colors.brandTertiary }]}>
+            <Gift size={20} color={colors.brandPrimary} weight="fill" />
+            <Text style={[styles.rewardsBtnText, { color: colors.brandPrimary }]}>Premi</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -88,6 +99,9 @@ export default function Classifica() {
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing.md },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  rewardsBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.pill },
+  rewardsBtnText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base },
   title: { fontFamily: Fonts.displayBold, fontSize: FontSize.huge, color: colors.onSurface },
   sub: { fontFamily: Fonts.body, fontSize: FontSize.base, color: colors.muted, marginTop: 2 },
   podium: { flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: Spacing.md, marginTop: Spacing.md },

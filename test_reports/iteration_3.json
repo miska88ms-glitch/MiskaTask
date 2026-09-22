@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 3 verified end-to-end. Backend: 20/20 pytest cases pass in test_iter3_features.py covering rewards CRUD + RBAC (capo-only create/update/delete, membro 403), redeem (deducts cost from actor member points, returns updated member, insufficient points -> 400, invalid reward -> 404), /api/redemptions history with enriched member/reward info; recurring POST /api/activities with dates:[d1,d2,d3] materializes 3 activities returned via range GET; single date works when dates omitted; impegno accepts time+end_time and returns them via activity_public; membro CAN create impegno for self, CANNOT create compito (403), CANNOT create impegno assigned_to another member (403); regressions still green (presets=10, leaderboard, register-push -> {status:'skipped'}, invite_code persisted). Frontend (mobile viewport 390x844) verified: Classifica header exposes open-rewards-btn navigating to /rewards; Profilo has profile-rewards-btn also navigating to /rewards; rewards screen as capo shows add-reward-btn opening the reward sheet (input-reward-title, reward-icon-gift grid, input-reward-cost, save-reward-btn) — creating produces a card with reward-edit-<id> + reward-delete-<id> and a 'Premio creato! 🎁' toast; activity sheet exposes repeat-toggle, weekday-0..weekday-6 chips (all 7 present), weeks-plus/weeks-minus stepper, input-time + input-end-time, and type-impegno segment; saving a recurring compito produces the card on Oggi and on Calendario; creating a type-impegno activity produces a card with the slate '📌 Impegno' pill visually distinct from compiti. No deprecated Expo packages (expo-av / expo-barcode-scanner / expo-background-fetch) detected. No red-screen errors.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "activity-sheet (mobile 390x844)",
+        "issues": [
+          "The ActivitySheet content is tall — repeat-toggle, weekday chips, weeks stepper and save button all live below the fold. The KeyboardAwareScrollView handles scrolling but Playwright ElementHandle.click requires manual scrollIntoView / dispatch_event to reach them. Consider making the sheet a bit denser or adding testIDs on the ScrollView so tests can programmatically scroll. Not blocking users."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter3_features.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "None blocking — Iteration 3 backend + frontend features work as specified.",
+    "Optional UX: on the rewards screen, when a membro has insufficient points, the redeem button label 'Mancano punti' is disabled but could also show the delta (e.g. 'Mancano 20 punti')."
+  ],
+  "critical_code_review_comments": [
+    "server.py rewards: capo-gate via get_actor+role for POST/PUT/DELETE; cost clamped to max(1,...); reward_public strips _id.",
+    "server.py redeem: atomic-enough — checks actor points >= cost, $inc points by -cost, then inserts redemption; returns both redemption + updated member so frontend can refresh cache without extra GET.",
+    "server.py list_redemptions returns newest-first, capped to 50 — good.",
+    "server.py create_activity: dates dedup+sort via sorted({d for d in dates if d}), fallback to [body.date] if empty; points forced to 0 for impegno; RBAC: membro cannot create compito nor impegno for others.",
+    "activity_public exposes both time and end_time.",
+    "Frontend activity-sheet.tsx toggleRepeat seeds weekdays with (dayjs(date).day()+6)%7 (Mon-based) matching the WEEKDAYS array ['Lun',...,'Dom'].",
+    "Frontend rewards.tsx uses testIDs: add-reward-btn, input-reward-title, reward-icon-*, input-reward-cost, save-reward-btn, reward-edit-<id>, reward-delete-<id>, redeem-<id>, reward-confirm-delete-<id> — matches spec.",
+    "No hardcoded URLs; EXPO_PUBLIC_BACKEND_URL used throughout.",
+    "No MongoDB _id leaks: every find_one/find uses {'_id': 0} projection and every serializer builds explicit dicts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter3_features.py"
+  ],
+  "success_rate": { "backend": "100% (20/20)", "frontend": "100% (all iter-3 flows verified)" },
+  "seed_data_creation": "Multiple TEST_Iter3_* families and TEST_LucaRw/TCapo/TEST 1h TV/TEST rec UI/TEST calcetto records created via /api/family/create + subsequent POSTs during pytest and Playwright runs. All prefixed with TEST_. Soft-delete used for reward deletion.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run backend regression: `pytest backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. For Playwright: activity-sheet content overflows the mobile viewport (390x844); use ElementHandle.dispatch_event('click') or scroll_into_view_if_needed to interact with repeat-toggle, weekday chips, save-activity-btn. React-controlled TextInput cannot be filled reliably via page.evaluate value setter — always use page.fill() (which works even when input is below the fold). Recurring compute is Mon-based (weekday index 0=Mon..6=Dom) and skips days before the base date, so a Tue base with weekdays=[0,2] materializes only Wed of that week + Mon/Wed of subsequent weeks (weeks stepper defaults to 4).",
+  "rca_of_issue": "N/A — all iteration 3 features (redeemable rewards + RBAC, recurring dates[] materialization, impegno time+end_time, distinct visual pill) verified on backend and frontend."
+}

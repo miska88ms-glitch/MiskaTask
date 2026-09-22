@@ -3,7 +3,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } 
 import { useRouter } from "expo-router";
 import { Check } from "phosphor-react-native";
 
-import { accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
+import { accentById, Fonts, FontSize, IMPEGNO, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { getIcon } from "@/src/icons";
 import { haptic } from "@/src/components/ui";
 import type { Activity, Member } from "@/src/api";
@@ -27,6 +27,7 @@ export function ActivityCard({
   const Icon = getIcon(activity.icon);
   const done = activity.status === "done";
   const a = accentById(assignee?.accent_color ?? "coral");
+  const cat = activity.type === "impegno" ? IMPEGNO : a;
   const scale = useSharedValue(1);
 
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -45,8 +46,8 @@ export function ActivityCard({
         onPress={() => router.push(`/task/${activity.id}`)}
         style={[styles.card, done && styles.cardDone]}
       >
-        <View style={[styles.iconWrap, { backgroundColor: done ? colors.surfaceTertiary : a.soft }]}>
-          <Icon size={26} color={done ? colors.muted : a.color} weight="fill" />
+        <View style={[styles.iconWrap, { backgroundColor: done ? colors.surfaceTertiary : cat.soft }]}>
+          <Icon size={26} color={done ? colors.muted : cat.color} weight="fill" />
         </View>
 
         <View style={styles.body}>
@@ -57,9 +58,14 @@ export function ActivityCard({
             {activity.type === "compito" && activity.points > 0 ? (
               <Text style={styles.metaText}>⭐ {activity.points} punti</Text>
             ) : (
-              <Text style={styles.metaText}>📌 Impegno</Text>
+              <Text style={[styles.impegnoPill, { color: cat.on, backgroundColor: cat.color }]}>📌 Impegno</Text>
             )}
-            {activity.time ? <Text style={styles.metaText}>· {activity.time}</Text> : null}
+            {activity.time ? (
+              <Text style={styles.metaText}>
+                {activity.time}
+                {activity.end_time ? `–${activity.end_time}` : ""}
+              </Text>
+            ) : null}
             {showAssignee && assignee ? (
               <Text style={styles.metaText}>
                 · {assignee.avatar} {assignee.name}
@@ -77,10 +83,10 @@ export function ActivityCard({
           hitSlop={8}
           style={[
             styles.check,
-            { borderColor: done ? a.color : colors.border, backgroundColor: done ? a.color : "transparent", opacity: canComplete ? 1 : 0.4 },
+            { borderColor: done ? cat.color : colors.border, backgroundColor: done ? cat.color : "transparent", opacity: canComplete ? 1 : 0.4 },
           ]}
         >
-          {done ? <Check size={20} color={a.on} weight="bold" /> : null}
+          {done ? <Check size={20} color={cat.on} weight="bold" /> : null}
         </Pressable>
       </Pressable>
     </Animated.View>
@@ -109,5 +115,6 @@ const useStyles = makeStyles((colors) => ({
   meta: { flexDirection: "row", flexWrap: "wrap", gap: 4, alignItems: "center" },
   metaText: { fontFamily: Fonts.bodySemibold, fontSize: FontSize.sm, color: colors.muted },
   metaBadge: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm, color: colors.onSurfaceTertiary, backgroundColor: colors.surfaceTertiary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: Radius.pill, overflow: "hidden" },
+  impegnoPill: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm, paddingHorizontal: 8, paddingVertical: 1, borderRadius: Radius.pill, overflow: "hidden" },
   check: { width: 34, height: 34, borderRadius: Radius.pill, borderWidth: 2, alignItems: "center", justifyContent: "center" },
 }));

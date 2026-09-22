@@ -27,6 +27,13 @@ import {
   Books,
   Cake,
   GameController,
+  Gift,
+  IceCream,
+  Television,
+  DeviceMobile,
+  Pizza,
+  Ticket,
+  Money,
   type IconProps,
 } from "phosphor-react-native";
 
@@ -58,6 +65,13 @@ export const ICONS: Record<string, PhosphorIcon> = {
   books: Books,
   cake: Cake,
   game: GameController,
+  gift: Gift,
+  icecream: IceCream,
+  tv: Television,
+  phone: DeviceMobile,
+  pizza: Pizza,
+  ticket: Ticket,
+  money: Money,
 };
 
 export function getIcon(key: string | undefined): PhosphorIcon {
@@ -92,5 +106,20 @@ export const COMMITMENT_ICONS: string[] = [
   "puzzle",
   "game",
   "cake",
+  "star",
+];
+
+export const REWARD_ICONS: string[] = [
+  "gift",
+  "game",
+  "icecream",
+  "tv",
+  "phone",
+  "pizza",
+  "ticket",
+  "money",
+  "cake",
+  "soccer",
+  "music",
   "star",
 ];

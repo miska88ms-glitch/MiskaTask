@@ -62,7 +62,7 @@ function Gate() {
       if (root !== "select-member") router.replace("/select-member");
       return;
     }
-    if (root !== "(tabs)" && root !== "manage-members" && root !== "task") router.replace("/(tabs)");
+    if (root !== "(tabs)" && root !== "manage-members" && root !== "task" && root !== "rewards") router.replace("/(tabs)");
   }, [status, activeMember, segments, router]);
 
   // Push: tap handlers + denied nudge
@@ -119,6 +119,7 @@ function Gate() {
         <Stack.Screen name="select-member" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="manage-members" />
+        <Stack.Screen name="rewards" />
         <Stack.Screen name="task/[id]" />
       </Stack>
 

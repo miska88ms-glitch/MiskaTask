@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
-import { ArrowsClockwise, CaretRight, Copy, PencilSimple, ShareNetwork, SignOut, UsersThree } from "phosphor-react-native";
+import { ArrowsClockwise, CaretRight, Copy, Gift, PencilSimple, ShareNetwork, SignOut, UsersThree } from "phosphor-react-native";
 
 import { ACCENTS, accentById, Fonts, FontSize, makeStyles, Radius, Spacing, useTheme } from "@/src/theme";
 import { Avatar } from "@/src/components/ui";
@@ -153,6 +153,11 @@ export default function Profilo() {
               <UsersThree size={22} color={accent.color} weight="fill" />
               <Text style={styles.listLabel}>{data?.family.name}</Text>
             </View>
+            <Pressable testID="profile-rewards-btn" onPress={() => router.push("/rewards")} style={styles.listRow}>
+              <Gift size={22} color={accent.color} weight="fill" />
+              <Text style={styles.listLabel}>Premi</Text>
+              <CaretRight size={18} color={colors.muted} weight="bold" />
+            </Pressable>
             {isCapo ? (
               <Pressable testID="manage-members-btn" onPress={() => router.push("/manage-members")} style={styles.listRow}>
                 <UsersThree size={22} color={accent.color} weight="fill" />

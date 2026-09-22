@@ -42,6 +42,7 @@ export type Activity = {
   assigned_to: string;
   date: string;
   time: string | null;
+  end_time: string | null;
   note: string | null;
   has_note: boolean;
   comment_count: number;
@@ -52,6 +53,20 @@ export type Activity = {
 };
 
 export type Preset = { title: string; icon: string; points: number };
+
+export type Reward = { id: string; family_id: string; title: string; icon: string; cost: number };
+
+export type Redemption = {
+  id: string;
+  reward_id: string;
+  reward_title: string;
+  reward_icon: string;
+  member_id: string;
+  member_name: string;
+  member_avatar: string;
+  cost: number;
+  created_at: string;
+};
 
 export type Comment = {
   id: string;
@@ -153,4 +168,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
+
+  rewards: () => request<Reward[]>("/rewards"),
+  addReward: (body: { title: string; icon: string; cost: number }) =>
+    request<Reward>("/rewards", { method: "POST", body: JSON.stringify(body) }),
+  updateReward: (id: string, body: Record<string, unknown>) =>
+    request<Reward>(`/rewards/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteReward: (id: string) => request<{ ok: boolean }>(`/rewards/${id}`, { method: "DELETE" }),
+  redeemReward: (id: string) =>
+    request<{ redemption: Redemption; member: Member }>(`/rewards/${id}/redeem`, { method: "POST" }),
+  redemptions: () => request<Redemption[]>("/redemptions"),
 };
