@@ -144,6 +144,9 @@ export const api = {
       body: JSON.stringify({ code }),
     }),
 
+  updateFamily: (name: string) =>
+    request<Family>("/family", { method: "PUT", body: JSON.stringify({ name }) }),
+
   regenerateCode: () =>
     request<{ invite_code: string }>("/family/regenerate-code", { method: "POST" }),
 
