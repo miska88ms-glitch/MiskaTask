@@ -37,7 +37,7 @@ export type Member = {
   has_pin: boolean;
 };
 
-export type Family = { family_id: string; name: string; invite_code: string | null };
+export type Family = { family_id: string; name: string; invite_code: string | null; is_owner: boolean };
 
 export type FamilyPayload = {
   user: { user_id: string; name: string; email: string | null };
