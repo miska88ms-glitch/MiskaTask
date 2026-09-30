@@ -122,6 +122,10 @@ class CreateFamilyIn(BaseModel):
     accent_color: str = Field(default="coral", max_length=24)
 
 
+class FamilyUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+
+
 class MemberIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     avatar: str = Field(default="🐼", max_length=8)
@@ -447,6 +451,23 @@ async def join_family(body: JoinIn):
     return {"session_token": token, **payload}
 
 
+@api_router.put("/family")
+async def update_family(
+    body: FamilyUpdateIn,
+    ctx: dict = Depends(require_auth),
+    x_member_id: Optional[str] = Header(default=None),
+):
+    family = ctx["family"]
+    actor = await get_actor(ctx, x_member_id)
+    if not actor or actor.get("role") != "capo" or family.get("owner_user_id") != ctx["user"]["user_id"]:
+        raise HTTPException(status_code=403, detail="Solo il capo famiglia può modificare il nome")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Inserisci un nome per la famiglia")
+    await db.families.update_one({"family_id": family["family_id"]}, {"$set": {"name": name}})
+    return {"family_id": family["family_id"], "name": name, "invite_code": family.get("invite_code")}
+
+
 @api_router.post("/family/regenerate-code")
 async def regenerate_code(
     ctx: dict = Depends(require_auth), x_member_id: Optional[str] = Header(default=None)
@@ -597,7 +618,7 @@ async def add_member(
         "name": body.name.strip(),
         "avatar": body.avatar,
         "accent_color": body.accent_color,
-        "role": body.role if body.role in ("capo", "membro") else "membro",
+        "role": "membro",
         "points": 0,
         "pin_hash": pwd_ctx.hash(body.pin) if body.pin else None,
         "deleted_at": None,
@@ -628,8 +649,6 @@ async def update_member(
         updates["avatar"] = body.avatar
     if body.accent_color is not None:
         updates["accent_color"] = body.accent_color
-    if body.role is not None and actor.get("role") == "capo":
-        updates["role"] = body.role if body.role in ("capo", "membro") else "membro"
     if body.pin is not None:
         updates["pin_hash"] = pwd_ctx.hash(body.pin) if body.pin else None
 
@@ -682,6 +701,8 @@ async def verify_pin(member_id: str, body: PinIn, ctx: dict = Depends(require_au
     )
     if not m:
         raise HTTPException(status_code=404, detail="Membro non trovato")
+    if m.get("role") == "capo" and family.get("owner_user_id") != ctx["user"]["user_id"]:
+        raise HTTPException(status_code=403, detail="Il profilo del capo famiglia è riservato al proprietario")
     if m.get("pin_hash") and not pwd_ctx.verify(body.pin, m["pin_hash"]):
         raise HTTPException(status_code=401, detail="PIN errato")
     await activate_member(ctx["session"]["session_token"], member_id)
