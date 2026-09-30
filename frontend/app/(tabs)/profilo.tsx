@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Platform, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,10 +26,24 @@ export default function Profilo() {
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const [editOpen, setEditOpen] = useState(false);
+  const [familyName, setFamilyName] = useState(data?.family.name ?? "");
   const [colorSheet, setColorSheet] = useState(false);
   const accent = accentById(activeMember?.accent_color);
   const isCapo = activeMember?.role === "capo";
   const code = data?.family.invite_code ?? "";
+
+  useEffect(() => {
+    setFamilyName(data?.family.name ?? "");
+  }, [data?.family.name]);
+
+  const familyNameMutation = useMutation({
+    mutationFn: (name: string) => api.updateFamily(name.trim()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["family"] });
+      toast("Nome famiglia aggiornato", "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
 
   const accentMutation = useMutation({
     mutationFn: (accentId: string) => api.updateMember(activeMember!.member_id, { accent_color: accentId }),
@@ -161,10 +175,35 @@ export default function Profilo() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Famiglia</Text>
           <View style={styles.list}>
-            <View style={styles.listRow}>
-              <UsersThree size={22} color={accent.color} weight="fill" />
-              <Text style={styles.listLabel}>{data?.family.name}</Text>
-            </View>
+            {isCapo ? (
+              <View style={styles.familyNameRow}>
+                <UsersThree size={22} color={accent.color} weight="fill" />
+                <TextInput
+                  testID="family-name-input"
+                  value={familyName}
+                  onChangeText={setFamilyName}
+                  maxLength={60}
+                  placeholder="Nome famiglia"
+                  placeholderTextColor={colors.muted}
+                  style={styles.familyNameInput}
+                />
+                <Pressable
+                  testID="save-family-name-btn"
+                  disabled={!familyName.trim() || familyName.trim() === data?.family.name || familyNameMutation.isPending}
+                  onPress={() => familyNameMutation.mutate(familyName)}
+                  style={[styles.familyNameSave, { backgroundColor: accent.soft, opacity: !familyName.trim() || familyName.trim() === data?.family.name ? 0.5 : 1 }]}
+                >
+                  <Text style={[styles.familyNameSaveText, { color: accent.color }]}>
+                    {familyNameMutation.isPending ? "..." : "Salva"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.listRow}>
+                <UsersThree size={22} color={accent.color} weight="fill" />
+                <Text style={styles.listLabel}>{data?.family.name}</Text>
+              </View>
+            )}
             <Pressable testID="profile-rewards-btn" onPress={() => router.push("/rewards")} style={styles.listRow}>
               <Gift size={22} color={accent.color} weight="fill" />
               <Text style={styles.listLabel}>Premi</Text>
@@ -235,6 +274,10 @@ const useStyles = makeStyles((colors) => ({
   list: { backgroundColor: colors.surfaceSecondary, borderRadius: Radius.lg, overflow: "hidden" },
   listRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md, padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.divider },
   listLabel: { flex: 1, fontFamily: Fonts.bodyBold, fontSize: FontSize.lg, color: colors.onSurface },
+  familyNameRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  familyNameInput: { flex: 1, fontFamily: Fonts.bodyBold, fontSize: FontSize.lg, color: colors.onSurface, backgroundColor: colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 10 },
+  familyNameSave: { paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.pill },
+  familyNameSaveText: { fontFamily: Fonts.bodyBold, fontSize: FontSize.sm },
   actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.sm, padding: Spacing.lg, borderRadius: Radius.pill },
   actionText: { fontFamily: Fonts.displayBold, fontSize: FontSize.lg, color: colors.onSurface },
 }));
