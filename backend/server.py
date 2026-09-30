@@ -318,7 +318,7 @@ async def family_payload(user: dict, family: dict, active_member_id: Optional[st
     members.sort(key=lambda m: (m.get("role") != "capo", m.get("created_at", now_utc())))
     return {
         "user": {"user_id": user["user_id"], "name": user.get("name"), "email": user.get("email")},
-        "family": {"family_id": family["family_id"], "name": family["name"], "invite_code": family.get("invite_code")},
+        "family": {"family_id": family["family_id"], "name": family["name"], "invite_code": family.get("invite_code"), "is_owner": family.get("owner_user_id") == user["user_id"]},
         "members": [member_public(m) for m in members],
         "active_member_id": active_member_id,
     }
