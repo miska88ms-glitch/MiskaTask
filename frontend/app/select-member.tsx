@@ -24,6 +24,16 @@ export default function SelectMember() {
   const [checking, setChecking] = useState(false);
 
   const onPickMember = async (m: Member) => {
+    if (m.role === "capo" && data?.family && data.user.user_id !== undefined) {
+      try {
+        await api.verifyPin(m.member_id, "");
+      } catch (e) {
+        toast((e as Error).message, "error");
+        return;
+      }
+      await selectMember(m);
+      return;
+    }
     if (!m.has_pin) {
       try {
         // Activates this profile on the server session (no PIN set).
