@@ -31,7 +31,6 @@ export function MemberSheet({
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState("🐼");
   const [color, setColor] = useState("mint");
-  const [role, setRole] = useState<"capo" | "membro">("membro");
   const [pin, setPin] = useState("");
   const [colorSheet, setColorSheet] = useState(false);
 
@@ -41,20 +40,18 @@ export function MemberSheet({
       setName(editing.name);
       setAvatar(editing.avatar);
       setColor(editing.accent_color);
-      setRole(editing.role);
       setPin("");
     } else {
       setName("");
       setAvatar("🐼");
       setColor("mint");
-      setRole("membro");
       setPin("");
     }
   }, [visible, editing]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const body: Record<string, unknown> = { name: name.trim(), avatar, accent_color: color, role };
+      const body: Record<string, unknown> = { name: name.trim(), avatar, accent_color: color };
       if (pin.length === 4) body.pin = pin;
       if (editing) return api.updateMember(editing.member_id, body);
       return api.addMember(body);
@@ -134,24 +131,6 @@ export function MemberSheet({
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Ruolo</Text>
-              <View style={styles.segment}>
-                {(["membro", "capo"] as const).map((r) => (
-                  <Pressable
-                    key={r}
-                    testID={`role-${r}`}
-                    onPress={() => setRole(r)}
-                    style={[styles.segmentBtn, role === r && { backgroundColor: accentById(color).color }]}
-                  >
-                    <Text style={[styles.segmentText, role === r && { color: accentById(color).on }]}>
-                      {r === "capo" ? "Capo famiglia" : "Membro"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.field}>
               <Text style={styles.label}>PIN {editing ? "(lascia vuoto per non cambiarlo)" : "(facoltativo)"}</Text>
               <TextInput
                 testID="input-member-pin"
@@ -207,7 +186,4 @@ const useStyles = makeStyles((colors) => ({
   accentRow: { flexDirection: "row", gap: Spacing.md, flexWrap: "wrap" },
   accentDot: { width: 40, height: 40, borderRadius: Radius.pill, borderWidth: 3 },
   customDot: { alignItems: "center", justifyContent: "center" },
-  segment: { flexDirection: "row", backgroundColor: colors.surfaceTertiary, borderRadius: Radius.pill, padding: 4 },
-  segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: Radius.pill, alignItems: "center" },
-  segmentText: { fontFamily: Fonts.displayBold, fontSize: FontSize.base, color: colors.onSurfaceTertiary },
 }));
