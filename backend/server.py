@@ -763,16 +763,35 @@ async def create_activity(
         )
     await db.activities.insert_many([dict(a) for a in created])
     first = created[0]
-    if first["assigned_to"] != actor["member_id"]:
-        extra = f" (x{len(created)})" if len(created) > 1 else ""
+    extra = f" (x{len(created)})" if len(created) > 1 else ""
+
+    if atype == "impegno":
+        membri = await db.members.find(
+            {
+                "family_id": family["family_id"],
+                "deleted_at": None,
+            },
+            {"_id": 0, "member_id": 1},
+        ).to_list(100)
+        recipients = [m["member_id"] for m in membri]
+        await send_push(
+            recipients,
+            {
+                "title": "📌 Nuovo impegno",
+                "message": f"{actor['name']} ha aggiunto: {first['title']}{extra}",
+                "action_url": f"/task/{first['id']}",
+            },
+        )
+    elif first["assigned_to"] != actor["member_id"]:
         await send_push(
             [first["assigned_to"]],
             {
-                "title": "📋 Nuovo compito" if atype == "compito" else "📌 Nuovo impegno",
+                "title": "📋 Nuovo compito",
                 "message": f"{actor['name']} ti ha assegnato: {first['title']}{extra}",
                 "action_url": f"/task/{first['id']}",
             },
         )
+
     return activity_public(first)
 
 
