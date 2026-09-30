@@ -24,16 +24,6 @@ export default function SelectMember() {
   const [checking, setChecking] = useState(false);
 
   const onPickMember = async (m: Member) => {
-    if (m.role === "capo" && data?.family && data.user.user_id !== undefined) {
-      try {
-        await api.verifyPin(m.member_id, "");
-      } catch (e) {
-        toast((e as Error).message, "error");
-        return;
-      }
-      await selectMember(m);
-      return;
-    }
     if (!m.has_pin) {
       try {
         // Activates this profile on the server session (no PIN set).
@@ -99,24 +89,28 @@ export default function SelectMember() {
         <Text style={styles.subtitle}>{data?.family.name}</Text>
 
         <View style={styles.grid}>
-          {members.map((m) => (
+          {members.map((m) => {
+            const locked = m.role === "capo" && !data?.family.is_owner;
+            return (
             <Pressable
               key={m.member_id}
               testID={`select-member-${m.member_id}`}
+              disabled={locked}
               onPress={() => onPickMember(m)}
-              style={({ pressed }) => [styles.memberCell, pressed && { transform: [{ scale: 0.96 }] }]}
+              style={({ pressed }) => [styles.memberCell, locked && { opacity: 0.55 }, pressed && !locked && { transform: [{ scale: 0.96 }] }]}
             >
               <Avatar emoji={m.avatar} accent={m.accent_color} size={84} />
               <Text style={styles.memberName}>{m.name}</Text>
               {m.role === "capo" ? (
                 <View style={[styles.badge, { backgroundColor: accentById(m.accent_color).soft }]}>
-                  <Text style={[styles.badgeText, { color: accentById(m.accent_color).color }]}>Capo</Text>
+                  <Text style={[styles.badgeText, { color: accentById(m.accent_color).color }]}>{locked ? "Capo · riservato" : "Capo"}</Text>
                 </View>
               ) : (
                 <Text style={styles.pinLabel}>{m.has_pin ? "🔒 PIN" : "Tocca per entrare"}</Text>
               )}
             </Pressable>
-          ))}
+            );
+          })}
         </View>
 
         <Pressable testID="signout-link" onPress={signOut} style={styles.signout}>
